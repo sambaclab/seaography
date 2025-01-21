@@ -102,7 +102,7 @@ impl EntityGetFieldBuilder {
 
                         match object {
                             Some(object) => Ok(Some(resolver_fn(object))),
-                            _ => Ok(Some(FieldValue::NULL)),
+                            _ => Ok(FieldValue::NONE),
                         }
                     }
                 })
