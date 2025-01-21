@@ -1,11 +1,14 @@
 use async_graphql::{
     dataloader::DataLoader,
-    dynamic::{Enum, Field, FieldFuture, InputObject, Object, Schema, SchemaBuilder, TypeRef},
+    dynamic::{
+        Enum, Field, FieldFuture, InputObject, Interface, Object, Schema, SchemaBuilder, TypeRef,
+        ValueAccessor,
+    },
 };
-use sea_orm::{ActiveEnum, ActiveModelTrait, EntityTrait, IntoActiveModel};
+use sea_orm::{ActiveEnum, ActiveModelTrait, EntityTrait, IntoActiveModel, RelationDef};
 
 use crate::{
-    order_enum, ActiveEnumBuilder, ActiveEnumFilterInputBuilder, BuilderContext,
+    ActiveEnumBuilder, ActiveEnumFilterInputBuilder, BuilderContext, CascadeInputBuilder,
     ConnectionObjectBuilder, CursorInputBuilder, EdgeObjectBuilder,
     EntityCreateBatchMutationBuilder, EntityCreateOneMutationBuilder, EntityDeleteMutationBuilder,
     EntityGetFieldBuilder, EntityInputBuilder, EntityObjectBuilder, EntityQueryFieldBuilder,
@@ -25,6 +28,9 @@ pub struct Builder {
 
     /// holds all output object types
     pub outputs: Vec<Object>,
+
+    // holds all interfaces object types
+    pub interfaces: Vec<Interface>,
 
     /// holds all input object types
     pub inputs: Vec<InputObject>,
@@ -61,6 +67,7 @@ impl Builder {
             mutation,
             schema,
             outputs: Vec::new(),
+            interfaces: Vec::new(),
             inputs: Vec::new(),
             enumerations: Vec::new(),
             queries: Vec::new(),
@@ -71,7 +78,7 @@ impl Builder {
     }
 
     /// used to register a new entity to the Builder context
-    pub fn register_entity<T>(&mut self, relations: Vec<Field>)
+    pub fn register_entity<T>(&mut self, relations: Vec<Field>, interfaces: Vec<&str>)
     where
         T: EntityTrait,
         <T as EntityTrait>::Model: Sync,
@@ -83,6 +90,11 @@ impl Builder {
             entity_object_builder.to_object::<T>(),
             |entity_object, field| entity_object.field(field),
         );
+        let entity_object = interfaces
+            .into_iter()
+            .fold(entity_object, |entity_object, interface| {
+                entity_object.implement(interface)
+            });
 
         if cfg!(feature = "offset-pagination") {
             self.outputs.extend(vec![entity_object]);
@@ -107,6 +119,11 @@ impl Builder {
         };
         let filter = filter_input_builder.to_object::<T>();
 
+        let cascade_input_builder = CascadeInputBuilder {
+            context: self.context,
+        };
+        let cascade = cascade_input_builder.to_object::<T>();
+
         let order_input_builder = OrderInputBuilder {
             context: self.context,
         };
@@ -116,7 +133,7 @@ impl Builder {
             context: self.context,
         };
         let new_order = new_order_input_builder.to_object::<T>();
-        self.inputs.extend(vec![filter, order, new_order]);
+        self.inputs.extend(vec![filter, order, new_order, cascade]);
 
         let order_enum_builder = OrderEnumBuilder {
             context: self.context,
@@ -261,6 +278,12 @@ impl Builder {
             .into_iter()
             .fold(mutation, |mutation, field| mutation.field(field));
 
+        // register interfaces to schema
+        let schema = self
+            .interfaces
+            .into_iter()
+            .fold(schema, |schema, interface| schema.register(interface));
+
         // register entities to schema
         let schema = self
             .outputs
@@ -343,13 +366,22 @@ pub trait RelationBuilder {
     ) -> async_graphql::dynamic::Field;
 }
 
+pub trait CascadeBuilder {
+    fn get_join(
+        &self,
+        context: &'static crate::BuilderContext,
+        filters: Option<ValueAccessor>,
+    ) -> RelationDef;
+}
+
 #[macro_export]
 macro_rules! register_entity {
-    ($builder:expr, $module_path:ident) => {
+    ($builder:expr, $module_path:ident,$interfaces:expr) => {
         $builder.register_entity::<$module_path::Entity>(
             <$module_path::RelatedEntity as sea_orm::Iterable>::iter()
                 .map(|rel| seaography::RelationBuilder::get_relation(&rel, $builder.context))
                 .collect(),
+            $interfaces,
         );
         $builder =
             $builder.register_entity_dataloader_one_to_one($module_path::Entity, tokio::spawn);
@@ -361,8 +393,8 @@ macro_rules! register_entity {
 
 #[macro_export]
 macro_rules! register_entities {
-    ($builder:expr, [$($module_paths:ident),+ $(,)?]) => {
-        $(seaography::register_entity!($builder, $module_paths);)*
+    ($builder:expr, [$(($module_paths:ident,$interfaces:expr)),+ $(,)?]) => {
+        $(seaography::register_entity!($builder, $module_paths,$interfaces);)*
     };
 }
 
@@ -379,7 +411,6 @@ macro_rules! register_entities_without_relation {
         $(seaography::register_entity_without_relation!($builder, $module_paths);)*
     };
 }
-
 
 #[macro_export]
 macro_rules! register_entity_modules {
