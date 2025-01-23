@@ -112,10 +112,11 @@ impl EntityGetFieldBuilder {
         T::Column::iter().fold(field, |field, column| {
             let column_name = entity_object.column_name::<T>(&column);
             let types_map_helper = TypesMapHelper { context };
+            let enum_type_name = column.enum_type_name();
             field.argument(InputValue::new(
                 column_name,
                 types_map_helper
-                    .sea_orm_column_type_to_graphql_type(column.def().get_column_type(), false)
+                    .sea_orm_column_type_to_graphql_type(column.def().get_column_type(), false, enum_type_name)
                     .unwrap(),
             ))
         })
