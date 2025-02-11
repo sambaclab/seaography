@@ -3,15 +3,13 @@ use async_graphql::{
     Error,
 };
 use heck::{ToLowerCamelCase, ToSnakeCase};
-use sea_orm::{
-    DatabaseConnection, EntityTrait,  QueryFilter
-};
+use sea_orm::{DatabaseConnection, EntityTrait, QueryFilter};
 
 #[cfg(not(feature = "offset-pagination"))]
 use crate::ConnectionObjectBuilder;
 use crate::{
     apply_order, apply_pagination, get_filter_conditions, get_first, BuilderContext,
-     CascadeInputBuilder, EntityObjectBuilder, FilterInputBuilder, GuardAction,
+    CascadeInputBuilder, EntityObjectBuilder, FilterInputBuilder, GuardAction,
     NewOrderInputBuilder, OrderInputBuilder, PaginationInputBuilder,
 };
 
@@ -170,10 +168,6 @@ impl EntityQueryFieldBuilder {
                 })
             }
         })
-        .argument(InputValue::new(
-            "cascade",
-            TypeRef::named(cascade_input_builder.type_name(&object_name)),
-        ))
         .argument(InputValue::new(
             &self.context.entity_query_field.filters,
             TypeRef::named(filter_input_builder.type_name(&object_name)),

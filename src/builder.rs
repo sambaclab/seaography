@@ -1,15 +1,17 @@
 use async_graphql::{
     dataloader::DataLoader,
     dynamic::{
-        Enum, Field, FieldFuture, InputObject, Interface, Object, Schema, SchemaBuilder, TypeRef,
-        ValueAccessor,
+        Enum, Field, FieldFuture, InputObject, InputValue, Interface, Object, ObjectAccessor,
+        Schema, SchemaBuilder, TypeRef, ValueAccessor,
     },
 };
-use sea_orm::{ActiveEnum, ActiveModelTrait, EntityTrait, IntoActiveModel, RelationDef};
+use sea_orm::{
+    ActiveEnum, ActiveModelTrait, DatabaseTransaction, EntityTrait, IntoActiveModel, RelationDef,
+};
 
 use crate::{
-    ActiveEnumBuilder, ActiveEnumFilterInputBuilder, BuilderContext, CascadeInputBuilder,
-    ConnectionObjectBuilder, CursorInputBuilder, EdgeObjectBuilder,
+    entity_update_mutation, ActiveEnumBuilder, ActiveEnumFilterInputBuilder, BuilderContext,
+    CascadeInputBuilder, ConnectionObjectBuilder, CursorInputBuilder, EdgeObjectBuilder,
     EntityCreateBatchMutationBuilder, EntityCreateOneMutationBuilder, EntityDeleteMutationBuilder,
     EntityGetFieldBuilder, EntityInputBuilder, EntityObjectBuilder, EntityQueryFieldBuilder,
     EntityUpdateMutationBuilder, FilterInputBuilder, FilterTypesMapHelper, NewOrderInputBuilder,
@@ -133,7 +135,7 @@ impl Builder {
             context: self.context,
         };
         let new_order = new_order_input_builder.to_object::<T>();
-        self.inputs.extend(vec![filter, order, new_order, cascade]);
+        self.inputs.extend(vec![filter, order, new_order]);
 
         let order_enum_builder = OrderEnumBuilder {
             context: self.context,
@@ -154,12 +156,18 @@ impl Builder {
         self.queries.push(get_query);
     }
 
-    pub fn register_entity_mutations<T, A>(&mut self)
-    where
+    pub fn register_entity_mutations<T, A, I>(
+        &mut self,
+        related_entities_input: Vec<(InputValue, InputValue)>,
+        related_entities_iter: I,
+    ) where
         T: EntityTrait,
         <T as EntityTrait>::Model: Sync,
         <T as EntityTrait>::Model: IntoActiveModel<A>,
         A: ActiveModelTrait<Entity = T> + sea_orm::ActiveModelBehavior + std::marker::Send,
+        I: IntoIterator + Clone + Send + Sync + 'static,
+        <I as IntoIterator>::Item: ThanosRelationBuilder + Send,
+        <I as IntoIterator>::IntoIter: Send,
     {
         let entity_object_builder = EntityObjectBuilder {
             context: self.context,
@@ -171,8 +179,17 @@ impl Builder {
             context: self.context,
         };
 
-        let entity_insert_input_object = entity_input_builder.insert_input_object::<T>();
-        let entity_update_input_object = entity_input_builder.update_input_object::<T>();
+        let (entity_insert_input_object, entity_update_input_object) =
+            related_entities_input.into_iter().fold(
+                (
+                    entity_input_builder.insert_input_object::<T>(),
+                    entity_input_builder.update_input_object::<T>(),
+                ),
+                |(insert_obj, update_obj), input| {
+                    (insert_obj.field(input.0), update_obj.field(input.1))
+                },
+            );
+
         self.inputs
             .extend(vec![entity_insert_input_object, entity_update_input_object]);
 
@@ -180,7 +197,7 @@ impl Builder {
         let entity_create_one_mutation_builder = EntityCreateOneMutationBuilder {
             context: self.context,
         };
-        let create_one_mutation = entity_create_one_mutation_builder.to_field::<T, A>();
+        let create_one_mutation = entity_create_one_mutation_builder.to_field::<T, A, I>(related_entities_iter.clone());
         self.mutations.push(create_one_mutation);
 
         // create batch mutation
@@ -188,7 +205,7 @@ impl Builder {
             EntityCreateBatchMutationBuilder {
                 context: self.context,
             };
-        let create_batch_mutation = entity_create_batch_mutation_builder.to_field::<T, A>();
+        let create_batch_mutation = entity_create_batch_mutation_builder.to_field::<T, A, I>(related_entities_iter);
         self.mutations.push(create_batch_mutation);
 
         // update mutation
@@ -366,6 +383,20 @@ pub trait RelationBuilder {
     ) -> async_graphql::dynamic::Field;
 }
 
+pub trait ThanosRelationBuilder {
+    fn get_relation_input(
+        &self,
+        context: &'static crate::BuilderContext,
+    ) -> (async_graphql::dynamic::InputValue, InputValue);
+    fn insert_related(
+        &self,
+        context: &'static crate::BuilderContext,
+        input_object: &ObjectAccessor<'_>,
+        transaction: &DatabaseTransaction,
+        owner: bool,
+    ) -> impl std::future::Future<Output = async_graphql::Result<()>> + Send;
+}
+
 pub trait CascadeBuilder {
     fn get_join(
         &self,
@@ -387,7 +418,17 @@ macro_rules! register_entity {
             $builder.register_entity_dataloader_one_to_one($module_path::Entity, tokio::spawn);
         $builder =
             $builder.register_entity_dataloader_one_to_many($module_path::Entity, tokio::spawn);
-        $builder.register_entity_mutations::<$module_path::Entity, $module_path::ActiveModel>();
+        $builder.register_entity_mutations::<$module_path::Entity, $module_path::ActiveModel, $module_path::RelatedEntityIter>(
+            <$module_path::RelatedEntity as sea_orm::Iterable>::iter()
+                .map(|rel| {
+                    seaography::ThanosRelationBuilder::get_relation_input(
+                        &rel,
+                        $builder.context,
+                    )
+                })
+                .collect(),
+            <$module_path::RelatedEntity as sea_orm::Iterable>::iter()
+        );
     };
 }
 
