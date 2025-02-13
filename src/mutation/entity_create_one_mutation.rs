@@ -136,7 +136,8 @@ impl EntityCreateOneMutationBuilder {
                     }
 
                     for related_entity in related_entities_iter.clone() {
-                        related_entity.insert_related(context, input_object, &transaction, true)
+                        related_entity
+                            .insert_related(context, input_object, &transaction, true, false)
                             .await?;
                     }
 
@@ -145,13 +146,14 @@ impl EntityCreateOneMutationBuilder {
                         &entity_object_builder,
                         input_object,
                     )?;
-                    let result = active_model.insert(&transaction).await?;
-                    
+                    let result = active_model.clone().insert(&transaction).await?;
+
                     for related_entity in related_entities_iter {
-                        related_entity.insert_related(context, input_object, &transaction, false)
+                        related_entity
+                            .insert_related(context, input_object, &transaction, false, false)
                             .await?;
                     }
-                    
+
                     transaction.commit().await?;
                     Ok(Some(FieldValue::owned_any(result)))
                 })

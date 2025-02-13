@@ -1,6 +1,6 @@
 use crate::{
     ActiveEnumConfig, ActiveEnumFilterInputConfig, CascadeInputConfig, ConnectionObjectConfig,
-    CursorInputConfig, EdgeObjectConfig, EntityCreateBatchMutationConfig,
+    CursorInputConfig, EdgeObjectConfig, EntityAddMutationConfig, EntityCreateBatchMutationConfig,
     EntityCreateOneMutationConfig, EntityDeleteMutationConfig, EntityGetFieldConfig,
     EntityInputConfig, EntityObjectConfig, EntityQueryFieldConfig, EntityUpdateMutationConfig,
     FilterInputConfig, NewOrderInputConfig, OffsetInputConfig, OrderByEnumConfig, OrderEnumConfig,
@@ -51,6 +51,7 @@ pub struct BuilderContext {
     pub entity_create_batch_mutation: EntityCreateBatchMutationConfig,
     pub entity_update_mutation: EntityUpdateMutationConfig,
     pub entity_delete_mutation: EntityDeleteMutationConfig,
+    pub entity_add_mutation: EntityAddMutationConfig,
 
     pub entity_input: EntityInputConfig,
 

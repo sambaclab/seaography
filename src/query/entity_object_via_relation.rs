@@ -5,14 +5,15 @@ use async_graphql::{
 };
 use heck::{ToLowerCamelCase, ToSnakeCase};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, Condition, DatabaseConnection, EntityTrait, Iden,
-    IntoActiveModel, ModelTrait, QueryFilter, Related, RelationDef,
+    ActiveModelTrait, ColumnTrait, Condition, DatabaseConnection, DatabaseTransaction, EntityTrait,
+    Iden, IntoActiveModel, Iterable, ModelTrait, PrimaryKeyToColumn, QueryFilter, Related,
+    RelationDef,
 };
 
 #[cfg(not(feature = "offset-pagination"))]
 use crate::ConnectionObjectBuilder;
 use crate::{
-    apply_memory_pagination, apply_order, apply_pagination, entity_input, get_filter_conditions,
+    apply_memory_pagination, apply_order, apply_pagination, get_filter_conditions,
     prepare_active_model, BuilderContext, EntityInputBuilder, EntityObjectBuilder,
     FilterInputBuilder, GuardAction, HashableGroupKey, KeyComplex, NewOrderInputBuilder,
     OffsetInput, OneToManyLoader, OneToOneLoader, OrderInputBuilder, PageInput, PaginationInput,
@@ -305,9 +306,15 @@ impl EntityObjectViaRelationBuilder {
             entity_input_builder.insert_type_name::<R>(),
             entity_input_builder.update_type_name::<R>(),
         );
-        match (via_relation_definition.is_owner, via_relation_definition.rel_type) {
+        match (
+            via_relation_definition.is_owner,
+            via_relation_definition.rel_type,
+        ) {
             (true, sea_orm::RelationType::HasMany) => (
-                InputValue::new(name.clone(), TypeRef::named_nn_list(object_insert_input_name)),
+                InputValue::new(
+                    name.clone(),
+                    TypeRef::named_nn_list(object_insert_input_name),
+                ),
                 InputValue::new(name, TypeRef::named_nn_list(object_insert_update_name)),
             ),
             _ => (
@@ -317,11 +324,13 @@ impl EntityObjectViaRelationBuilder {
         }
     }
 
-    pub fn insert_related<T, A, R, B>(
+    pub async fn insert_related<T, A, R, B>(
         &self,
         input_object: &ValueAccessor<'_>,
         owner: bool,
-    ) -> async_graphql::Result<Option<Vec<B>>>
+        upsert: bool,
+        transaction: &DatabaseTransaction,
+    ) -> async_graphql::Result<()>
     where
         T: Related<R>,
         T: EntityTrait,
@@ -343,11 +352,9 @@ impl EntityObjectViaRelationBuilder {
             Some(def) => def,
             None => <T as Related<R>>::to(),
         };
-        
-        if owner == via_relation_definition.is_owner {
-            Ok(None)
-        } else {
-            match (
+
+        if owner != via_relation_definition.is_owner {
+            let active_models = match (
                 via_relation_definition.is_owner,
                 via_relation_definition.rel_type,
             ) {
@@ -360,15 +367,19 @@ impl EntityObjectViaRelationBuilder {
                                         &entity_input_builder,
                                         &entity_object_builder,
                                         &obj,
-                                    )?;
-                                    Ok(Some(active_model))
+                                    );
+                                    if let Ok(active_model) = active_model {
+                                        Ok(active_model)
+                                    } else {
+                                        Err(async_graphql::Error::new("Invalid Input"))
+                                    }
                                 } else {
                                     Err(async_graphql::Error::new("Invalid Input"))
                                 }
                             })
                             .collect()
                     } else {
-                        Err(async_graphql::Error::new("Invalid Input"))
+                        return Err(async_graphql::Error::new("Invalid Input"));
                     }
                 }
                 _ => {
@@ -378,13 +389,31 @@ impl EntityObjectViaRelationBuilder {
                             &entity_object_builder,
                             &obj,
                         )?;
-                        Ok(Some(vec![active_model]))
+                        Ok(vec![active_model])
                     } else {
-                        Err(async_graphql::Error::new("Invalid Input"))
+                        return Err(async_graphql::Error::new("Invalid Input"));
                     }
                 }
-            }
+            };
+            if let Ok(active_models) = active_models {
+                if upsert {
+                    R::insert_many(active_models).on_conflict(
+                        sea_orm::sea_query::OnConflict::columns(
+                            R::PrimaryKey::iter()
+                                .map(|pk| pk.into_column())
+                                .collect::<Vec<R::Column>>(),
+                        )
+                        .update_columns(R::Column::iter())
+                        .to_owned(),
+                    )
+                } else {
+                    R::insert_many(active_models)
+                }
+                .exec(transaction)
+                .await?;
+            };
         }
+        Ok(())
     }
     pub fn joiin<T, R>(
         &self,

@@ -10,7 +10,7 @@ use sea_orm::{
 };
 
 use crate::{
-    entity_update_mutation, ActiveEnumBuilder, ActiveEnumFilterInputBuilder, BuilderContext,
+    EntityAddMutationBuilder, ActiveEnumBuilder, ActiveEnumFilterInputBuilder, BuilderContext,
     CascadeInputBuilder, ConnectionObjectBuilder, CursorInputBuilder, EdgeObjectBuilder,
     EntityCreateBatchMutationBuilder, EntityCreateOneMutationBuilder, EntityDeleteMutationBuilder,
     EntityGetFieldBuilder, EntityInputBuilder, EntityObjectBuilder, EntityQueryFieldBuilder,
@@ -205,8 +205,15 @@ impl Builder {
             EntityCreateBatchMutationBuilder {
                 context: self.context,
             };
-        let create_batch_mutation = entity_create_batch_mutation_builder.to_field::<T, A, I>(related_entities_iter);
+        let create_batch_mutation = entity_create_batch_mutation_builder.to_field::<T, A, I>(related_entities_iter.clone());
         self.mutations.push(create_batch_mutation);
+
+        // add mutation
+        let entity_add_mutation_builder: EntityAddMutationBuilder = EntityAddMutationBuilder {
+            context: self.context,
+        };
+        let add_mutation = entity_add_mutation_builder.to_field::<T, A, I>(related_entities_iter.clone());
+        self.mutations.push(add_mutation);
 
         // update mutation
         let entity_update_mutation_builder = EntityUpdateMutationBuilder {
@@ -394,6 +401,7 @@ pub trait ThanosRelationBuilder {
         input_object: &ObjectAccessor<'_>,
         transaction: &DatabaseTransaction,
         owner: bool,
+        upsert: bool,
     ) -> impl std::future::Future<Output = async_graphql::Result<()>> + Send;
 }
 
