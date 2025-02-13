@@ -50,13 +50,13 @@ impl EntityAddMutationBuilder {
         T: EntityTrait,
         <T as EntityTrait>::Model: Sync,
     {
-        let entity_query_field_builder = EntityQueryFieldBuilder {
+        let entity_object_builder = EntityObjectBuilder {
             context: self.context,
         };
         format!(
             "{}{}",
             self.context.entity_add_mutation.mutation_prefix,
-            entity_query_field_builder.type_name::<T>()
+            entity_object_builder.type_name::<T>()
         )
     }
 
