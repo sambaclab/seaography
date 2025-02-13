@@ -1,7 +1,6 @@
 use std::collections::{BTreeMap, HashSet};
 
 use async_graphql::dynamic::{Field, FieldFuture, FieldValue, InputValue, ObjectAccessor, TypeRef};
-use itertools::Itertools;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, DatabaseConnection, EntityTrait, IntoActiveModel,
     Iterable, ModelTrait, PrimaryKeyToColumn, PrimaryKeyTrait, QueryFilter, QuerySelect,
@@ -29,7 +28,7 @@ impl std::default::Default for EntityAddMutationConfig {
                 if cfg!(feature = "field-snake-case") {
                     "add_"
                 } else {
-                    "Add"
+                    "add"
                 }
                 .into()
             },
@@ -192,8 +191,7 @@ impl EntityAddMutationBuilder {
                                     .collect::<Vec<T::Column>>(),
                             )
                             .update_columns(T::Column::iter())
-                                .to_owned()
-                            ,
+                            .to_owned(),
                         )
                     } else {
                         T::insert_many(active_models)
