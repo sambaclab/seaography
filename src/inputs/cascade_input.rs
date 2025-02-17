@@ -4,6 +4,7 @@ use sea_orm::{EntityTrait, Iterable, JoinType, QuerySelect, RelationTrait};
 use crate::{BuilderContext, CascadeBuilder, EntityObjectBuilder, FilterInputBuilder};
 use heck::ToUpperCamelCase;
 
+use crate::CascadeTypesMapHelper;
 /// The configuration structure for FilterInputBuilder
 pub struct CascadeInputConfig {
     /// the filter input type name formatter function
@@ -44,10 +45,12 @@ impl CascadeInputBuilder {
         let filter_input_builder = FilterInputBuilder {
             context: self.context,
         };
+        let cascade_types_map_helper = CascadeTypesMapHelper {
+            context: self.context,
+        };
 
         let entity_name = entity_object_builder.type_name::<T>();
         let cascade_name = self.type_name(&entity_name);
-
         let object =
             T::Relation::iter().fold(InputObject::new(&cascade_name), |object, related_table| {
                 let related_table_name = related_table.def().to_tbl;
@@ -60,7 +63,6 @@ impl CascadeInputBuilder {
                 if relation_name.is_empty() {
                     return object;
                 }
-                dbg!(&entity_name);
                 match related_table_name {
                     sea_orm::sea_query::TableRef::Table(iden) => {
                         let name = iden.to_string();
@@ -92,7 +94,16 @@ impl CascadeInputBuilder {
                     _ => object,
                 }
             });
-
+        let object2 = InputObject::new(&cascade_name).field(InputValue::new(
+            "and",
+            TypeRef::named_nn_list(TypeRef::STRING),
+        ));
+        let object = T::Column::iter().fold(InputObject::new(&cascade_name), |object, column| {
+            match cascade_types_map_helper.get_column_filter_input_value::<T>(&column) {
+                Some(field) => object.field(field),
+                None => object,
+            }
+        });
         object
     }
     pub fn parse_object<T>(

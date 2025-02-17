@@ -6,43 +6,43 @@ use sea_orm::{ActiveEnum, ColumnTrait, ColumnType, Condition, DynIden, EntityTra
 
 use crate::{ActiveEnumBuilder, BuilderContext, FilterInfo, FilterOperation, SeaResult};
 
-/// The configuration structure for ActiveEnumFilterInputConfig
-pub struct ActiveEnumFilterInputConfig {
+/// The configuration structure for ActiveEnumCascadeInputConfig
+pub struct ActiveEnumCascadeInputConfig {
     /// used to format type_name
     pub type_name: crate::SimpleNamingFn,
 }
 
-impl std::default::Default for ActiveEnumFilterInputConfig {
+impl std::default::Default for ActiveEnumCascadeInputConfig {
     fn default() -> Self {
-        ActiveEnumFilterInputConfig {
+        ActiveEnumCascadeInputConfig {
             type_name: Box::new(|enum_name: &str| -> String {
-                format!("{}EnumFilterInput", enum_name.to_upper_camel_case())
+                format!("{}EnumCascadeInput", enum_name.to_upper_camel_case())
             }),
         }
     }
 }
 
 /// This builder produces a filter input for a SeaORM enumeration
-pub struct ActiveEnumFilterInputBuilder {
+pub struct ActiveEnumCascadeInputBuilder {
     pub context: &'static BuilderContext,
 }
 
-impl ActiveEnumFilterInputBuilder {
+impl ActiveEnumCascadeInputBuilder {
     /// used to get filter input name for SeaORM enumeration
     pub fn type_name<A: ActiveEnum>(&self) -> String {
         let enum_name = A::name().to_string();
-        self.context.active_enum_filter_input.type_name.as_ref()(&enum_name)
+        self.context.active_enum_cascade_input.type_name.as_ref()(&enum_name)
     }
 
     /// used to get filter input name for SeaORM enumeration Iden
     pub fn type_name_from_iden(&self, enum_name: &DynIden) -> String {
         let enum_name = enum_name.to_string();
-        self.context.active_enum_filter_input.type_name.as_ref()(&enum_name)
+        self.context.active_enum_cascade_input.type_name.as_ref()(&enum_name)
     }
 
     /// used to get filter input name from string
     pub fn type_name_from_string(&self, enum_name: &str) -> String {
-        self.context.active_enum_filter_input.type_name.as_ref()(enum_name)
+        self.context.active_enum_cascade_input.type_name.as_ref()(enum_name)
     }
 
     /// used to map an active enum to an input filter info object

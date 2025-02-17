@@ -26,6 +26,7 @@ pub struct EntityQueryFieldConfig {
     /// name for 'pagination' field
     pub pagination: String,
     pub order: String,
+    pub cascade: String,
 }
 
 impl std::default::Default for EntityQueryFieldConfig {
@@ -49,6 +50,7 @@ impl std::default::Default for EntityQueryFieldConfig {
             },
             pagination: "pagination".into(),
             order: "order".into(),
+            cascade: "cascade".into(),
         }
     }
 }
@@ -168,6 +170,10 @@ impl EntityQueryFieldBuilder {
                 })
             }
         })
+        .argument(InputValue::new(
+            &self.context.entity_query_field.cascade,
+            TypeRef::named(cascade_input_builder.type_name(&object_name)),
+        ))
         .argument(InputValue::new(
             &self.context.entity_query_field.filters,
             TypeRef::named(filter_input_builder.type_name(&object_name)),

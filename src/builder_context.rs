@@ -1,11 +1,11 @@
 use crate::{
-    ActiveEnumConfig, ActiveEnumFilterInputConfig, CascadeInputConfig, ConnectionObjectConfig,
-    CursorInputConfig, EdgeObjectConfig, EntityAddMutationConfig, EntityCreateBatchMutationConfig,
-    EntityCreateOneMutationConfig, EntityDeleteMutationConfig, EntityGetFieldConfig,
-    EntityInputConfig, EntityObjectConfig, EntityQueryFieldConfig, EntityUpdateMutationConfig,
-    FilterInputConfig, NewOrderInputConfig, OffsetInputConfig, OrderByEnumConfig, OrderEnumConfig,
-    OrderInputConfig, PageInfoObjectConfig, PageInputConfig, PaginationInfoObjectConfig,
-    PaginationInputConfig,
+    ActiveEnumCascadeInputConfig, ActiveEnumConfig, ActiveEnumFilterInputConfig,
+    CascadeInputConfig, ConnectionObjectConfig, CursorInputConfig, EdgeObjectConfig,
+    EntityAddMutationConfig, EntityCreateBatchMutationConfig, EntityCreateOneMutationConfig,
+    EntityDeleteMutationConfig, EntityGetFieldConfig, EntityInputConfig, EntityObjectConfig,
+    EntityQueryFieldConfig, EntityUpdateMutationConfig, FilterInputConfig, NewOrderInputConfig,
+    OffsetInputConfig, OrderByEnumConfig, OrderEnumConfig, OrderInputConfig, PageInfoObjectConfig,
+    PageInputConfig, PaginationInfoObjectConfig, PaginationInputConfig,
 };
 
 pub mod guards;
@@ -16,6 +16,9 @@ pub use types_map::*;
 
 pub mod filter_types_map;
 pub use filter_types_map::*;
+
+pub mod cascade_types_map;
+pub use cascade_types_map::*;
 
 /// Used to hold the configuration for various aspects
 /// related to our builder options. You can modify the
@@ -38,6 +41,7 @@ pub struct BuilderContext {
     pub filter_input: FilterInputConfig,
     pub cascade_input: CascadeInputConfig,
     pub active_enum_filter_input: ActiveEnumFilterInputConfig,
+    pub active_enum_cascade_input: ActiveEnumCascadeInputConfig,
 
     pub page_info_object: PageInfoObjectConfig,
     pub pagination_info_object: PaginationInfoObjectConfig,
@@ -58,6 +62,7 @@ pub struct BuilderContext {
     pub guards: GuardsConfig,
     pub types: TypesMapConfig,
     pub filter_types: FilterTypesMapConfig,
+    pub cascade_types: CascadeTypesMapConfig,
     // is_skipped function
     // naming function
 }

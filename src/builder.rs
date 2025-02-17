@@ -136,7 +136,6 @@ impl Builder {
         };
         let new_order = new_order_input_builder.to_object::<T>();
         self.inputs.extend(vec![filter, order, new_order, cascade]);
-
         let order_enum_builder = OrderEnumBuilder {
             context: self.context,
         };
