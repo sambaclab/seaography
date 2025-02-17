@@ -10,8 +10,8 @@ use sea_orm::{
 };
 
 use crate::{
-    EntityAddMutationBuilder, ActiveEnumBuilder, ActiveEnumFilterInputBuilder, BuilderContext,
-    CascadeInputBuilder, ConnectionObjectBuilder, CursorInputBuilder, EdgeObjectBuilder,
+    ActiveEnumBuilder, ActiveEnumFilterInputBuilder, BuilderContext, CascadeInputBuilder,
+    ConnectionObjectBuilder, CursorInputBuilder, EdgeObjectBuilder, EntityAddMutationBuilder,
     EntityCreateBatchMutationBuilder, EntityCreateOneMutationBuilder, EntityDeleteMutationBuilder,
     EntityGetFieldBuilder, EntityInputBuilder, EntityObjectBuilder, EntityQueryFieldBuilder,
     EntityUpdateMutationBuilder, FilterInputBuilder, FilterTypesMapHelper, NewOrderInputBuilder,
@@ -197,7 +197,8 @@ impl Builder {
         let entity_create_one_mutation_builder = EntityCreateOneMutationBuilder {
             context: self.context,
         };
-        let create_one_mutation = entity_create_one_mutation_builder.to_field::<T, A, I>(related_entities_iter.clone());
+        let create_one_mutation =
+            entity_create_one_mutation_builder.to_field::<T, A, I>(related_entities_iter.clone());
         self.mutations.push(create_one_mutation);
 
         // create batch mutation
@@ -205,14 +206,16 @@ impl Builder {
             EntityCreateBatchMutationBuilder {
                 context: self.context,
             };
-        let create_batch_mutation = entity_create_batch_mutation_builder.to_field::<T, A, I>(related_entities_iter.clone());
+        let create_batch_mutation =
+            entity_create_batch_mutation_builder.to_field::<T, A, I>(related_entities_iter.clone());
         self.mutations.push(create_batch_mutation);
 
         // add mutation
         let entity_add_mutation_builder: EntityAddMutationBuilder = EntityAddMutationBuilder {
             context: self.context,
         };
-        let add_mutation = entity_add_mutation_builder.to_field::<T, A, I>(related_entities_iter.clone());
+        let add_mutation =
+            entity_add_mutation_builder.to_field::<T, A, I>(related_entities_iter.clone());
         self.mutations.push(add_mutation);
 
         // update mutation
@@ -389,20 +392,20 @@ pub trait RelationBuilder {
         context: &'static crate::BuilderContext,
     ) -> async_graphql::dynamic::Field;
 }
-
+#[async_trait::async_trait]
 pub trait ThanosRelationBuilder {
     fn get_relation_input(
         &self,
         context: &'static crate::BuilderContext,
     ) -> (async_graphql::dynamic::InputValue, InputValue);
-    fn insert_related(
+    async fn insert_related(
         &self,
         context: &'static crate::BuilderContext,
         input_object: &ObjectAccessor<'_>,
         transaction: &DatabaseTransaction,
         owner: bool,
         upsert: bool,
-    ) -> impl std::future::Future<Output = async_graphql::Result<()>> + Send;
+    ) -> async_graphql::Result<()>;
 }
 
 pub trait CascadeBuilder {

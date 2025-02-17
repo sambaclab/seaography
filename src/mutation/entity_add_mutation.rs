@@ -176,12 +176,6 @@ impl EntityAddMutationBuilder {
                         );
                         active_models.push(active_model);
                         // let result = active_model.clone().insert(&transaction).await?;
-
-                        for related_entity in related_entities_iter.clone() {
-                            related_entity
-                                .insert_related(context, input_object, &transaction, false, upsert)
-                                .await?;
-                        }
                     }
                     let _ = if upsert {
                         T::insert_many(active_models).on_conflict(
@@ -198,6 +192,21 @@ impl EntityAddMutationBuilder {
                     }
                     .exec(&transaction)
                     .await?;
+
+                    for input in ctx
+                        .args
+                        .get(&context.entity_add_mutation.data_field)
+                        .unwrap()
+                        .list()?
+                        .iter()
+                    {
+                        let input_object = &input.object()?;
+                        for related_entity in related_entities_iter.clone() {
+                            related_entity
+                                .insert_related(context, input_object, &transaction, false, upsert)
+                                .await?;
+                        }
+                    }
                     let condition =
                         prepare_conditions::<T, A>(&entity_object_builder, &condition_in, db)
                             .await?;
