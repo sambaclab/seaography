@@ -369,10 +369,7 @@ impl EntityObjectRelationBuilder {
             .exec(transaction)
             .await?;
 
-            match (
-                via_relation_definition.is_owner,
-                via_relation_definition.rel_type,
-            ) {
+            match (relation_definition.is_owner, relation_definition.rel_type) {
                 (true, sea_orm::RelationType::HasMany) => {
                     if let Ok(objs) = input_object.list() {
                         for val in objs.iter() {
