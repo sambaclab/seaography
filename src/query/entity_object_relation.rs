@@ -296,7 +296,7 @@ impl EntityObjectRelationBuilder {
         upsert: bool,
         transaction: &DatabaseTransaction,
         related_entities: I,
-    ) -> async_graphql::Result<()>
+    ) -> async_graphql::Result<usize>
     where
         T: EntityTrait,
         R: EntityTrait,
@@ -314,6 +314,7 @@ impl EntityObjectRelationBuilder {
         let context = self.context;
         let entity_object_builder = EntityObjectBuilder { context };
         let entity_input_builder = EntityInputBuilder { context };
+        let mut num_uids = 0;
         if owner != relation_definition.is_owner {
             let active_models = match (
                 relation_definition.is_owner,
@@ -325,7 +326,7 @@ impl EntityObjectRelationBuilder {
                     for val in objs.iter() {
                         let obj = val.object()?;
                         for related_entity in related_entities.clone() {
-                            related_entity
+                            num_uids += related_entity
                                 .insert_related(context, &obj, transaction, true, upsert)
                                 .await?;
                         }
@@ -341,7 +342,7 @@ impl EntityObjectRelationBuilder {
                 _ => {
                     let obj = input_object.object()?;
                     for related_entity in related_entities.clone() {
-                        related_entity
+                        num_uids += related_entity
                             .insert_related(context, &obj, transaction, true, upsert)
                             .await?;
                     }
@@ -353,6 +354,7 @@ impl EntityObjectRelationBuilder {
                     vec![active_model]
                 }
             };
+            num_uids += active_models.len();
             if upsert {
                 R::insert_many(active_models).on_conflict(
                     sea_orm::sea_query::OnConflict::columns(
@@ -371,34 +373,28 @@ impl EntityObjectRelationBuilder {
 
             match (relation_definition.is_owner, relation_definition.rel_type) {
                 (true, sea_orm::RelationType::HasMany) => {
-                    if let Ok(objs) = input_object.list() {
-                        for val in objs.iter() {
-                            if let Ok(obj) = val.object() {
-                                for related_entity in related_entities.clone() {
-                                    related_entity
-                                        .insert_related(context, &obj, transaction, false, upsert)
-                                        .await?;
-                                }
+                    let objs = input_object.list()?;
+                    for val in objs.iter() {
+                        if let Ok(obj) = val.object() {
+                            for related_entity in related_entities.clone() {
+                                num_uids += related_entity
+                                    .insert_related(context, &obj, transaction, false, upsert)
+                                    .await?;
                             }
                         }
-                    } else {
-                        return Err(async_graphql::Error::new("Invalid Input"));
                     }
                 }
                 _ => {
-                    if let Ok(obj) = input_object.object() {
-                        for related_entity in related_entities {
-                            related_entity
-                                .insert_related(context, &obj, transaction, false, upsert)
-                                .await?;
-                        }
-                    } else {
-                        return Err(async_graphql::Error::new("Invalid Input"));
+                    let obj = input_object.object()?;
+                    for related_entity in related_entities {
+                        num_uids += related_entity
+                            .insert_related(context, &obj, transaction, false, upsert)
+                            .await?;
                     }
                 }
             }
         }
-        Ok(())
+        Ok(num_uids)
     }
 
     pub fn joiin<T, R>(

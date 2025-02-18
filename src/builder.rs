@@ -10,14 +10,14 @@ use sea_orm::{
 };
 
 use crate::{
-    ActiveEnumBuilder, ActiveEnumFilterInputBuilder, BuilderContext, CascadeInputBuilder,
-    ConnectionObjectBuilder, CursorInputBuilder, EdgeObjectBuilder, EntityAddMutationBuilder,
-    EntityCreateBatchMutationBuilder, EntityCreateOneMutationBuilder, EntityDeleteMutationBuilder,
-    EntityGetFieldBuilder, EntityInputBuilder, EntityObjectBuilder, EntityQueryFieldBuilder,
-    EntityUpdateMutationBuilder, FilterInputBuilder, FilterTypesMapHelper, NewOrderInputBuilder,
-    OffsetInputBuilder, OneToManyLoader, OneToOneLoader, OrderByEnumBuilder, OrderEnumBuilder,
-    OrderInputBuilder, PageInfoObjectBuilder, PageInputBuilder, PaginationInfoObjectBuilder,
-    PaginationInputBuilder,
+    entity_object_payload, ActiveEnumBuilder, ActiveEnumFilterInputBuilder, BuilderContext,
+    CascadeInputBuilder, ConnectionObjectBuilder, CursorInputBuilder, EdgeObjectBuilder,
+    EntityAddMutationBuilder, EntityCreateBatchMutationBuilder, EntityCreateOneMutationBuilder,
+    EntityDeleteMutationBuilder, EntityGetFieldBuilder, EntityInputBuilder, EntityObjectBuilder,
+    EntityObjectPayloadBuilder, EntityQueryFieldBuilder, EntityUpdateMutationBuilder,
+    FilterInputBuilder, FilterTypesMapHelper, NewOrderInputBuilder, OffsetInputBuilder,
+    OneToManyLoader, OneToOneLoader, OrderByEnumBuilder, OrderEnumBuilder, OrderInputBuilder,
+    PageInfoObjectBuilder, PageInputBuilder, PaginationInfoObjectBuilder, PaginationInputBuilder,
 };
 
 /// The Builder is used to create the Schema for GraphQL
@@ -97,9 +97,15 @@ impl Builder {
             .fold(entity_object, |entity_object, interface| {
                 entity_object.implement(interface)
             });
+        let entity_object_payload_builder = EntityObjectPayloadBuilder {
+            context: self.context,
+        };
+
+        let entity_object_payload = entity_object_payload_builder.to_object::<T>();
 
         if cfg!(feature = "offset-pagination") {
-            self.outputs.extend(vec![entity_object]);
+            self.outputs
+                .extend(vec![entity_object, entity_object_payload]);
         } else {
             let edge_object_builder = EdgeObjectBuilder {
                 context: self.context,
@@ -210,13 +216,16 @@ impl Builder {
             entity_create_batch_mutation_builder.to_field::<T, A, I>(related_entities_iter.clone());
         self.mutations.push(create_batch_mutation);
 
-        // add mutation
-        let entity_add_mutation_builder: EntityAddMutationBuilder = EntityAddMutationBuilder {
-            context: self.context,
-        };
-        let add_mutation =
-            entity_add_mutation_builder.to_field::<T, A, I>(related_entities_iter.clone());
-        self.mutations.push(add_mutation);
+        if cfg!(feature = "offset-pagination") {
+            // add mutation
+            let entity_add_mutation_builder: EntityAddMutationBuilder = EntityAddMutationBuilder {
+                context: self.context,
+            };
+            let add_mutation =
+                entity_add_mutation_builder.to_field::<T, A, I>(related_entities_iter.clone());
+
+            self.mutations.push(add_mutation);
+        }
 
         // update mutation
         let entity_update_mutation_builder = EntityUpdateMutationBuilder {
@@ -405,7 +414,7 @@ pub trait ThanosRelationBuilder {
         transaction: &DatabaseTransaction,
         owner: bool,
         upsert: bool,
-    ) -> async_graphql::Result<()>;
+    ) -> async_graphql::Result<usize>;
 }
 
 pub trait CascadeBuilder {
