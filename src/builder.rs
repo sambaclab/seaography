@@ -10,8 +10,8 @@ use sea_orm::{
 };
 
 use crate::{
-    ActiveEnumBuilder, ActiveEnumFilterInputBuilder, BuilderContext, CascadeInputBuilder,
-    ConnectionObjectBuilder, CursorInputBuilder, EdgeObjectBuilder, EntityAddMutationBuilder,
+    ActiveEnumBuilder, ActiveEnumFilterInputBuilder, BuilderContext, ConnectionObjectBuilder,
+    CursorInputBuilder, EdgeObjectBuilder, EntityAddMutationBuilder,
     EntityCreateBatchMutationBuilder, EntityCreateOneMutationBuilder, EntityDeleteMutationBuilder,
     EntityGetFieldBuilder, EntityInputBuilder, EntityObjectBuilder, EntityQueryFieldBuilder,
     EntityUpdateMutationBuilder, FilterInputBuilder, FilterTypesMapHelper, NewOrderInputBuilder,
@@ -19,6 +19,7 @@ use crate::{
     OrderInputBuilder, PageInfoObjectBuilder, PageInputBuilder, PaginationInfoObjectBuilder,
     PaginationInputBuilder,
 };
+use crate::{CascadeByEnumBuilder, CascadeInputBuilder};
 
 /// The Builder is used to create the Schema for GraphQL
 ///
@@ -125,6 +126,7 @@ impl Builder {
             context: self.context,
         };
         let cascade = cascade_input_builder.to_object::<T>();
+        dbg!(&cascade);
 
         let order_input_builder = OrderInputBuilder {
             context: self.context,
@@ -141,6 +143,12 @@ impl Builder {
         };
         let order_enum = order_enum_builder.enumeration::<T>();
         self.enumerations.push(order_enum);
+
+        let cascade_by_enum_builder = CascadeByEnumBuilder {
+            context: self.context,
+        };
+        let cascade_by_enum = cascade_by_enum_builder.enumeration::<T>();
+        self.enumerations.push(cascade_by_enum);
 
         let entity_query_field_builder = EntityQueryFieldBuilder {
             context: self.context,

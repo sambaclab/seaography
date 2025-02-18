@@ -1,17 +1,17 @@
+use crate::CascadeInputBuilder;
+#[cfg(not(feature = "offset-pagination"))]
+use crate::ConnectionObjectBuilder;
+use crate::{
+    apply_order, apply_pagination, get_filter_conditions, get_first, BuilderContext,
+    EntityObjectBuilder, FilterInputBuilder, GuardAction, NewOrderInputBuilder, OrderInputBuilder,
+    PaginationInputBuilder,
+};
 use async_graphql::{
     dynamic::{Field, FieldFuture, FieldValue, InputValue, TypeRef},
     Error,
 };
 use heck::{ToLowerCamelCase, ToSnakeCase};
 use sea_orm::{DatabaseConnection, EntityTrait, QueryFilter};
-
-#[cfg(not(feature = "offset-pagination"))]
-use crate::ConnectionObjectBuilder;
-use crate::{
-    apply_order, apply_pagination, get_filter_conditions, get_first, BuilderContext,
-    CascadeInputBuilder, EntityObjectBuilder, FilterInputBuilder, GuardAction,
-    NewOrderInputBuilder, OrderInputBuilder, PaginationInputBuilder,
-};
 
 use super::get_cascade_conditions;
 
@@ -152,8 +152,8 @@ impl EntityQueryFieldBuilder {
                         let pagination =
                             PaginationInputBuilder { context }.parse_object(pagination);
                         let pagination = get_first(first, pagination);
-                        let _cascades = ctx.args.get("cascade");
-                        let _cascades = get_cascade_conditions(_cascades);
+                        let cascades = ctx.args.get("cascade");
+                        let _cascades = get_cascade_conditions(cascades);
 
                         //let stmt =
                         // CascadeInputBuilder { context }.parse_object::<T>(context, cascades);
@@ -172,7 +172,8 @@ impl EntityQueryFieldBuilder {
         })
         .argument(InputValue::new(
             &self.context.entity_query_field.cascade,
-            TypeRef::named(cascade_input_builder.type_name(&object_name)),
+            // TypeRef::named(cascade_input_builder.type_name(&object_name)),
+            TypeRef::named("cascade"),
         ))
         .argument(InputValue::new(
             &self.context.entity_query_field.filters,
