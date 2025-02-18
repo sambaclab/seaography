@@ -1,11 +1,11 @@
 use crate::{
     ActiveEnumConfig, ActiveEnumFilterInputConfig, CascadeInputConfig, ConnectionObjectConfig,
-    CursorInputConfig, EdgeObjectConfig, EntityCreateBatchMutationConfig,
+    CursorInputConfig, EdgeObjectConfig, EntityAddMutationConfig, EntityCreateBatchMutationConfig,
     EntityCreateOneMutationConfig, EntityDeleteMutationConfig, EntityGetFieldConfig,
-    EntityInputConfig, EntityObjectConfig, EntityQueryFieldConfig, EntityUpdateMutationConfig,
-    FilterInputConfig, NewOrderInputConfig, OffsetInputConfig, OrderByEnumConfig, OrderEnumConfig,
-    OrderInputConfig, PageInfoObjectConfig, PageInputConfig, PaginationInfoObjectConfig,
-    PaginationInputConfig,
+    EntityInputConfig, EntityObjectConfig, EntityObjectPayloadConfig, EntityQueryFieldConfig,
+    EntityUpdateMutationConfig, FilterInputConfig, NewOrderInputConfig, OffsetInputConfig,
+    OrderByEnumConfig, OrderEnumConfig, OrderInputConfig, PageInfoObjectConfig, PageInputConfig,
+    PaginationInfoObjectConfig, PaginationInputConfig,
 };
 
 pub mod guards;
@@ -43,6 +43,7 @@ pub struct BuilderContext {
     pub pagination_info_object: PaginationInfoObjectConfig,
     pub edge_object: EdgeObjectConfig,
     pub entity_object: EntityObjectConfig,
+    pub entity_object_payload: EntityObjectPayloadConfig,
     pub connection_object: ConnectionObjectConfig,
     pub entity_query_field: EntityQueryFieldConfig,
     pub entity_get_field: EntityGetFieldConfig,
@@ -51,6 +52,7 @@ pub struct BuilderContext {
     pub entity_create_batch_mutation: EntityCreateBatchMutationConfig,
     pub entity_update_mutation: EntityUpdateMutationConfig,
     pub entity_delete_mutation: EntityDeleteMutationConfig,
+    pub entity_add_mutation: EntityAddMutationConfig,
 
     pub entity_input: EntityInputConfig,
 
