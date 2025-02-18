@@ -153,7 +153,7 @@ impl EntityQueryFieldBuilder {
                             PaginationInputBuilder { context }.parse_object(pagination);
                         let pagination = get_first(first, pagination);
                         let cascades = ctx.args.get("cascade");
-                        let _cascades = get_cascade_conditions(cascades);
+                        let _cascades = get_cascade_conditions(context, cascades);
 
                         //let stmt =
                         // CascadeInputBuilder { context }.parse_object::<T>(context, cascades);
