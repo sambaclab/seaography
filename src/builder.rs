@@ -10,14 +10,14 @@ use sea_orm::{
 };
 
 use crate::{
-    entity_object_payload, ActiveEnumBuilder, ActiveEnumFilterInputBuilder, BuilderContext,
-    CascadeInputBuilder, ConnectionObjectBuilder, CursorInputBuilder, EdgeObjectBuilder,
-    EntityAddMutationBuilder, EntityCreateBatchMutationBuilder, EntityCreateOneMutationBuilder,
-    EntityDeleteMutationBuilder, EntityGetFieldBuilder, EntityInputBuilder, EntityObjectBuilder,
-    EntityObjectPayloadBuilder, EntityQueryFieldBuilder, EntityUpdateMutationBuilder,
-    FilterInputBuilder, FilterTypesMapHelper, NewOrderInputBuilder, OffsetInputBuilder,
-    OneToManyLoader, OneToOneLoader, OrderByEnumBuilder, OrderEnumBuilder, OrderInputBuilder,
-    PageInfoObjectBuilder, PageInputBuilder, PaginationInfoObjectBuilder, PaginationInputBuilder,
+    ActiveEnumBuilder, ActiveEnumFilterInputBuilder, BuilderContext, ConnectionObjectBuilder,
+    CursorInputBuilder, EdgeObjectBuilder, EntityAddMutationBuilder,
+    EntityCreateBatchMutationBuilder, EntityCreateOneMutationBuilder, EntityDeleteMutationBuilder,
+    EntityGetFieldBuilder, EntityInputBuilder, EntityObjectBuilder, EntityObjectPayloadBuilder,
+    EntityQueryFieldBuilder, EntityUpdateMutationBuilder, FilterInputBuilder, FilterTypesMapHelper,
+    NewOrderInputBuilder, OffsetInputBuilder, OneToManyLoader, OneToOneLoader, OrderByEnumBuilder,
+    OrderEnumBuilder, OrderInputBuilder, PageInfoObjectBuilder, PageInputBuilder,
+    PaginationInfoObjectBuilder, PaginationInputBuilder,
 };
 
 /// The Builder is used to create the Schema for GraphQL
@@ -127,10 +127,10 @@ impl Builder {
         };
         let filter = filter_input_builder.to_object::<T>();
 
-        let cascade_input_builder = CascadeInputBuilder {
-            context: self.context,
-        };
-        let cascade = cascade_input_builder.to_object::<T>();
+        // let cascade_input_builder = CascadeInputBuilder {
+        //     context: self.context,
+        // };
+        // let cascade = cascade_input_builder.to_object::<T>();
 
         let order_input_builder = OrderInputBuilder {
             context: self.context,

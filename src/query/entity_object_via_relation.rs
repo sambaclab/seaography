@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use async_graphql::{
     dataloader::DataLoader,
-    dynamic::{Field, FieldFuture, FieldValue, InputValue, ObjectAccessor, TypeRef, ValueAccessor},
+    dynamic::{Field, FieldFuture, FieldValue, InputValue, TypeRef, ValueAccessor},
     Error,
 };
 use heck::{ToLowerCamelCase, ToSnakeCase};

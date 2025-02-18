@@ -9,8 +9,8 @@ use sea_orm::{DatabaseConnection, EntityTrait, QueryFilter};
 use crate::ConnectionObjectBuilder;
 use crate::{
     apply_order, apply_pagination, get_filter_conditions, get_first, BuilderContext,
-    CascadeInputBuilder, EntityObjectBuilder, FilterInputBuilder, GuardAction,
-    NewOrderInputBuilder, OrderInputBuilder, PaginationInputBuilder,
+    EntityObjectBuilder, FilterInputBuilder, GuardAction, NewOrderInputBuilder, OrderInputBuilder,
+    PaginationInputBuilder,
 };
 
 use super::get_cascade_conditions;
@@ -85,9 +85,9 @@ impl EntityQueryFieldBuilder {
         let filter_input_builder = FilterInputBuilder {
             context: self.context,
         };
-        let cascade_input_builder = CascadeInputBuilder {
-            context: self.context,
-        };
+        // let cascade_input_builder = CascadeInputBuilder {
+        //     context: self.context,
+        // };
         let order_input_builder = OrderInputBuilder {
             context: self.context,
         };
