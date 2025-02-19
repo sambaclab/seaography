@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use async_graphql::{
     dataloader::DataLoader,
     dynamic::{Field, FieldFuture, FieldValue, InputValue, ObjectAccessor, TypeRef, ValueAccessor},
@@ -17,7 +19,7 @@ use crate::{
     prepare_active_model, BuilderContext, EntityInputBuilder, EntityObjectBuilder,
     FilterInputBuilder, GuardAction, HashableGroupKey, KeyComplex, NewOrderInputBuilder,
     OffsetInput, OneToManyLoader, OneToOneLoader, OrderInputBuilder, PageInput, PaginationInput,
-    PaginationInputBuilder,
+    PaginationInputBuilder, ThanosRelationBuilder,
 };
 
 /// This builder produces a GraphQL field for an SeaORM entity related trait
@@ -324,13 +326,14 @@ impl EntityObjectViaRelationBuilder {
         }
     }
 
-    pub async fn insert_related<T, A, R, B>(
+    pub async fn insert_related<T, A, R, B, I>(
         &self,
         input_object: &ValueAccessor<'_>,
         owner: bool,
         upsert: bool,
         transaction: &DatabaseTransaction,
-    ) -> async_graphql::Result<()>
+        related_entities: I,
+    ) -> async_graphql::Result<usize>
     where
         T: Related<R>,
         T: EntityTrait,
@@ -343,10 +346,13 @@ impl EntityObjectViaRelationBuilder {
         A: ActiveModelTrait<Entity = T> + sea_orm::ActiveModelBehavior + std::marker::Send,
         <R as EntityTrait>::Model: IntoActiveModel<B>,
         B: ActiveModelTrait<Entity = R> + sea_orm::ActiveModelBehavior + std::marker::Send,
+        I: IntoIterator + Clone,
+        <I as IntoIterator>::Item: ThanosRelationBuilder + Debug,
     {
         let context = self.context;
         let entity_object_builder = EntityObjectBuilder { context };
         let entity_input_builder = EntityInputBuilder { context };
+        let mut num_uids = 0;
 
         let via_relation_definition = match <T as Related<R>>::via() {
             Some(def) => def,
@@ -356,64 +362,86 @@ impl EntityObjectViaRelationBuilder {
         if owner != via_relation_definition.is_owner {
             let active_models = match (
                 via_relation_definition.is_owner,
-                via_relation_definition.rel_type,
+                via_relation_definition.rel_type.clone(),
             ) {
                 (true, sea_orm::RelationType::HasMany) => {
-                    if let Ok(objs) = input_object.list() {
-                        objs.iter()
-                            .map(|val| {
-                                if let Ok(obj) = val.object() {
-                                    let active_model = prepare_active_model::<R, B>(
-                                        &entity_input_builder,
-                                        &entity_object_builder,
-                                        &obj,
-                                    );
-                                    if let Ok(active_model) = active_model {
-                                        Ok(active_model)
-                                    } else {
-                                        Err(async_graphql::Error::new("Invalid Input"))
-                                    }
-                                } else {
-                                    Err(async_graphql::Error::new("Invalid Input"))
-                                }
-                            })
-                            .collect()
-                    } else {
-                        return Err(async_graphql::Error::new("Invalid Input"));
-                    }
-                }
-                _ => {
-                    if let Ok(obj) = input_object.object() {
+                    let objs = input_object.list()?;
+                    let mut active_models = vec![];
+                    for val in objs.iter() {
+                        let obj = val.object()?;
+                        for related_entity in related_entities.clone() {
+                            num_uids += related_entity
+                                .insert_related(context, &obj, transaction, true, upsert)
+                                .await?;
+                        }
                         let active_model = prepare_active_model::<R, B>(
                             &entity_input_builder,
                             &entity_object_builder,
                             &obj,
                         )?;
-                        Ok(vec![active_model])
-                    } else {
-                        return Err(async_graphql::Error::new("Invalid Input"));
+                        active_models.push(active_model);
+                    }
+                    active_models
+                }
+                _ => {
+                    let obj = input_object.object()?;
+                    for related_entity in related_entities.clone() {
+                        num_uids += related_entity
+                            .insert_related(context, &obj, transaction, true, upsert)
+                            .await?;
+                    }
+                    let active_model = prepare_active_model::<R, B>(
+                        &entity_input_builder,
+                        &entity_object_builder,
+                        &obj,
+                    )?;
+                    vec![active_model]
+                }
+            };
+            num_uids += active_models.len();
+            if upsert {
+                R::insert_many(active_models).on_conflict(
+                    sea_orm::sea_query::OnConflict::columns(
+                        R::PrimaryKey::iter()
+                            .map(|pk| pk.into_column())
+                            .collect::<Vec<R::Column>>(),
+                    )
+                    .update_columns(R::Column::iter())
+                    .to_owned(),
+                )
+            } else {
+                R::insert_many(active_models)
+            }
+            .exec(transaction)
+            .await?;
+
+            match (
+                via_relation_definition.is_owner,
+                via_relation_definition.rel_type,
+            ) {
+                (true, sea_orm::RelationType::HasMany) => {
+                    let objs = input_object.list()?;
+                    for val in objs.iter() {
+                        if let Ok(obj) = val.object() {
+                            for related_entity in related_entities.clone() {
+                                num_uids += related_entity
+                                    .insert_related(context, &obj, transaction, false, upsert)
+                                    .await?;
+                            }
+                        }
                     }
                 }
-            };
-            if let Ok(active_models) = active_models {
-                if upsert {
-                    R::insert_many(active_models).on_conflict(
-                        sea_orm::sea_query::OnConflict::columns(
-                            R::PrimaryKey::iter()
-                                .map(|pk| pk.into_column())
-                                .collect::<Vec<R::Column>>(),
-                        )
-                        .update_columns(R::Column::iter())
-                        .to_owned(),
-                    )
-                } else {
-                    R::insert_many(active_models)
+                _ => {
+                    let obj = input_object.object()?;
+                    for related_entity in related_entities {
+                        num_uids += related_entity
+                            .insert_related(context, &obj, transaction, false, upsert)
+                            .await?;
+                    }
                 }
-                .exec(transaction)
-                .await?;
-            };
+            }
         }
-        Ok(())
+        Ok(num_uids)
     }
     pub fn joiin<T, R>(
         &self,

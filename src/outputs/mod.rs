@@ -12,3 +12,6 @@ pub use connection_object::*;
 
 pub mod entity_object;
 pub use entity_object::*;
+
+pub mod entity_object_payload;
+pub use entity_object_payload::*;

@@ -9,7 +9,7 @@ use sea_orm::{
 
 use crate::{
     prepare_active_model, BuilderContext, EntityInputBuilder, EntityObjectBuilder,
-    EntityQueryFieldBuilder, GuardAction, ThanosRelationBuilder,
+    EntityObjectPayloadBuilder, EntityQueryFieldBuilder, GuardAction, ThanosRelationBuilder,
 };
 
 /// The configuration structure of EntityAddMutationBuilder
@@ -71,14 +71,10 @@ impl EntityAddMutationBuilder {
         <I as IntoIterator>::Item: ThanosRelationBuilder + Send,
         <I as IntoIterator>::IntoIter: Send,
     {
-        let entity_input_builder = EntityInputBuilder {
-            context: self.context,
-        };
-        let entity_object_builder = EntityObjectBuilder {
-            context: self.context,
-        };
-
         let context = self.context;
+        let entity_input_builder = EntityInputBuilder { context };
+        let entity_object_builder = EntityObjectBuilder { context };
+        let entity_object_payload = EntityObjectPayloadBuilder { context };
 
         let object_name: String = entity_object_builder.type_name::<T>();
         let guard = self.context.guards.entity_guards.get(&object_name);
@@ -86,7 +82,7 @@ impl EntityAddMutationBuilder {
 
         Field::new(
             self.type_name::<T>(),
-            TypeRef::named_nn_list_nn(entity_object_builder.type_name::<T>()),
+            TypeRef::named(entity_object_payload.type_name::<T>()),
             move |ctx| {
                 let related_entities_iter = related_entities_iter.clone();
                 FieldFuture::new(async move {
@@ -126,6 +122,8 @@ impl EntityAddMutationBuilder {
                     let mut active_models: Vec<A> = Vec::new();
                     let mut condition_in: BTreeMap<String, HashSet<sea_orm::Value>> =
                         BTreeMap::new();
+
+                    let mut num_uids = 0;
                     for input in ctx
                         .args
                         .get(&context.entity_add_mutation.data_field)
@@ -156,9 +154,8 @@ impl EntityAddMutationBuilder {
                                 };
                             }
                         }
-
                         for related_entity in related_entities_iter.clone() {
-                            related_entity
+                            num_uids += related_entity
                                 .insert_related(context, input_object, &transaction, true, upsert)
                                 .await?;
                         }
@@ -176,13 +173,8 @@ impl EntityAddMutationBuilder {
                         );
                         active_models.push(active_model);
                         // let result = active_model.clone().insert(&transaction).await?;
-
-                        for related_entity in related_entities_iter.clone() {
-                            related_entity
-                                .insert_related(context, input_object, &transaction, false, upsert)
-                                .await?;
-                        }
                     }
+                    num_uids += active_models.len();
                     let _ = if upsert {
                         T::insert_many(active_models).on_conflict(
                             sea_orm::sea_query::OnConflict::columns(
@@ -198,15 +190,28 @@ impl EntityAddMutationBuilder {
                     }
                     .exec(&transaction)
                     .await?;
+
+                    for input in ctx
+                        .args
+                        .get(&context.entity_add_mutation.data_field)
+                        .unwrap()
+                        .list()?
+                        .iter()
+                    {
+                        let input_object = &input.object()?;
+                        for related_entity in related_entities_iter.clone() {
+                            num_uids += related_entity
+                                .insert_related(context, input_object, &transaction, false, upsert)
+                                .await?;
+                        }
+                    }
                     let condition =
                         prepare_conditions::<T, A>(&entity_object_builder, &condition_in, db)
                             .await?;
                     let results = T::find().filter(condition).all(&transaction).await?;
                     transaction.commit().await?;
 
-                    Ok(Some(FieldValue::list(
-                        results.into_iter().map(FieldValue::owned_any),
-                    )))
+                    Ok(Some(FieldValue::owned_any((num_uids, results))))
                 })
             },
         )
