@@ -1,12 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use async_graphql::dynamic::{InputObject, InputValue, ObjectAccessor, TypeRef};
-use sea_orm::{ColumnTrait, ColumnType, Condition, EntityTrait};
+use sea_orm::{ColumnTrait, Condition, EntityTrait};
 
-use crate::{
-    active_enum_cascade_input::prepare_enumeration_condition, ActiveEnumFilterInputBuilder,
-    BuilderContext, EntityObjectBuilder, SeaResult, TypesMapHelper,
-};
+use crate::{BuilderContext, EntityObjectBuilder, SeaResult};
 
 type FnCascadeCondition =
     Box<dyn Fn(Condition, &ObjectAccessor) -> SeaResult<Condition> + Send + Sync>;

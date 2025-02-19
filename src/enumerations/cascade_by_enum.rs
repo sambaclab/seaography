@@ -40,9 +40,6 @@ impl CascadeByEnumBuilder {
         };
         let object_name = entity_object_builder.type_name::<T>();
 
-        let a = Enum::new("aaaaa".to_string())
-            .item(EnumItem::new("a".to_string()))
-            .item(EnumItem::new("b".to_string()));
         T::Column::iter().fold(Enum::new(self.type_name(&object_name)), |enu, column| {
             enu.item(EnumItem::new(
                 entity_object_builder.column_name::<T>(&column),

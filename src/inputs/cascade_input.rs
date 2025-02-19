@@ -1,7 +1,7 @@
-use async_graphql::dynamic::{Enum, EnumItem, InputObject, InputValue, TypeRef, ValueAccessor};
-use sea_orm::{EntityTrait, Iterable};
+use async_graphql::dynamic::{InputObject, InputValue, TypeRef, ValueAccessor};
+use sea_orm::EntityTrait;
 
-use crate::{BuilderContext, EntityObjectBuilder};
+use crate::BuilderContext;
 
 /// The configuration structure for OrderInputBuilder
 pub struct CascadeInputConfig {

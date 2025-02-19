@@ -3,13 +3,27 @@ use async_graphql::Value;
 use sea_orm::{Condition, EntityTrait, Iterable};
 
 use crate::BuilderContext;
-pub fn get_cascade_conditions(
+use crate::CascadeTypesMapHelper;
+use crate::EntityObjectBuilder;
+pub fn get_cascade_conditions<T>(
     context: &'static BuilderContext,
     cascades: Option<ValueAccessor>,
-) -> Condition {
-    let v = extract_column_names(cascades);
-    dbg!(&v);
-    Condition::all()
+) -> Condition
+where
+    T: EntityTrait,
+    <T as EntityTrait>::Model: Sync,
+{
+    // let v = extract_column_names(cascades);
+    // dbg!(&v);
+    // recursive_prepare_condition::<T>(context, cascades.unwrap().object().unwrap());
+    // Condition::all()
+    if let Some(cascades) = cascades {
+        let cascades = cascades.object().unwrap();
+
+        recursive_prepare_condition::<T>(context, cascades)
+    } else {
+        Condition::all()
+    }
 }
 
 fn extract_column_names(cascades: Option<ValueAccessor>) -> Vec<String> {
@@ -27,3 +41,75 @@ fn extract_column_names(cascades: Option<ValueAccessor>) -> Vec<String> {
     Vec::new()
 }
 
+// used to prepare recursively the query cascading condition
+
+fn recursive_prepare_condition<T>(
+    context: &'static BuilderContext,
+    filters: ObjectAccessor,
+) -> Condition
+where
+    T: EntityTrait,
+    <T as EntityTrait>::Model: Sync,
+{
+    let entity_object_builder = EntityObjectBuilder { context };
+    let filter_types_map_helper = CascadeTypesMapHelper { context };
+
+    let condition = T::Column::iter().fold(Condition::all(), |condition, column: T::Column| {
+        let column_name = entity_object_builder.column_name::<T>(&column);
+
+        let filter = filters.get(&column_name);
+
+        if let Some(filter) = filter {
+            let filter = filter.object().unwrap();
+
+            filter_types_map_helper
+                .prepare_column_condition::<T>(condition, &filter, &column)
+                .unwrap()
+        } else {
+            condition
+        }
+    });
+
+    let condition = if let Some(and) = filters.get("and") {
+        let filters = and.list().unwrap();
+
+        condition.add(
+            filters
+                .iter()
+                .fold(Condition::all(), |condition, filters: ValueAccessor| {
+                    let filters = filters.object().unwrap();
+                    condition.add(recursive_prepare_condition::<T>(context, filters))
+                }),
+        )
+    } else {
+        condition
+    };
+
+    let condition = if let Some(or) = filters.get("or") {
+        let filters = or.list().unwrap();
+
+        condition.add(
+            filters
+                .iter()
+                .fold(Condition::any(), |condition, filters: ValueAccessor| {
+                    let filters = filters.object().unwrap();
+                    condition.add(recursive_prepare_condition::<T>(context, filters))
+                }),
+        )
+    } else {
+        condition
+    };
+
+    let condition = if let Some(not) = filters.get("not") {
+        let filter = not.object().unwrap();
+        condition.add(
+            Condition::all()
+                .add(recursive_prepare_condition::<T>(context, filter))
+                .not(),
+        )
+    } else {
+        condition
+    };
+
+    condition
+}

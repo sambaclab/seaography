@@ -110,7 +110,8 @@ impl EntityInputBuilder {
                 Some(type_name) => type_name,
                 None => return object,
             };
-
+            let a = InputValue::new(column_name.clone(), graphql_type.clone());
+            dbg!(&a);
             object.field(InputValue::new(column_name, graphql_type))
         })
     }
@@ -160,7 +161,7 @@ impl EntityInputBuilder {
 
             let result =
                 types_map_helper.async_graphql_value_to_sea_orm_value::<T>(&column, &value)?;
-
+            dbg!(&result);
             map.insert(column_name, result);
         }
 
