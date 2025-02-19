@@ -9,6 +9,7 @@ use sea_orm::{
     ActiveEnum, ActiveModelTrait, DatabaseTransaction, EntityTrait, IntoActiveModel, RelationDef,
 };
 
+use crate::CascadeByEnumBuilder;
 use crate::{
     entity_object_payload, ActiveEnumBuilder, ActiveEnumFilterInputBuilder, BuilderContext,
     CascadeInputBuilder, ConnectionObjectBuilder, CursorInputBuilder, EdgeObjectBuilder,
@@ -19,7 +20,6 @@ use crate::{
     OneToManyLoader, OneToOneLoader, OrderByEnumBuilder, OrderEnumBuilder, OrderInputBuilder,
     PageInfoObjectBuilder, PageInputBuilder, PaginationInfoObjectBuilder, PaginationInputBuilder,
 };
-use crate::{CascadeByEnumBuilder, CascadeInputBuilder};
 
 /// The Builder is used to create the Schema for GraphQL
 ///
@@ -223,7 +223,6 @@ impl Builder {
             entity_create_batch_mutation_builder.to_field::<T, A, I>(related_entities_iter.clone());
         self.mutations.push(create_batch_mutation);
 
-
         if cfg!(feature = "offset-pagination") {
             // add mutation
             let entity_add_mutation_builder: EntityAddMutationBuilder = EntityAddMutationBuilder {
@@ -234,7 +233,6 @@ impl Builder {
 
             self.mutations.push(add_mutation);
         }
-
 
         // update mutation
         let entity_update_mutation_builder = EntityUpdateMutationBuilder {
