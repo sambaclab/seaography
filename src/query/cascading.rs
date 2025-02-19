@@ -52,64 +52,23 @@ where
     <T as EntityTrait>::Model: Sync,
 {
     let entity_object_builder = EntityObjectBuilder { context };
-    let filter_types_map_helper = CascadeTypesMapHelper { context };
-
+    let cascade_types_map_helper = CascadeTypesMapHelper { context };
     let condition = T::Column::iter().fold(Condition::all(), |condition, column: T::Column| {
+        dbg!(&column);
         let column_name = entity_object_builder.column_name::<T>(&column);
-
         let filter = filters.get(&column_name);
+        let filter = filters.get("fields");
 
+        dbg!(&filter.is_some());
         if let Some(filter) = filter {
-            let filter = filter.object().unwrap();
-
-            filter_types_map_helper
-                .prepare_column_condition::<T>(condition, &filter, &column)
+            cascade_types_map_helper
+                .prepare_column_condition::<T>(condition, &column)
                 .unwrap()
         } else {
             condition
         }
     });
-
-    let condition = if let Some(and) = filters.get("and") {
-        let filters = and.list().unwrap();
-
-        condition.add(
-            filters
-                .iter()
-                .fold(Condition::all(), |condition, filters: ValueAccessor| {
-                    let filters = filters.object().unwrap();
-                    condition.add(recursive_prepare_condition::<T>(context, filters))
-                }),
-        )
-    } else {
-        condition
-    };
-
-    let condition = if let Some(or) = filters.get("or") {
-        let filters = or.list().unwrap();
-
-        condition.add(
-            filters
-                .iter()
-                .fold(Condition::any(), |condition, filters: ValueAccessor| {
-                    let filters = filters.object().unwrap();
-                    condition.add(recursive_prepare_condition::<T>(context, filters))
-                }),
-        )
-    } else {
-        condition
-    };
-
-    let condition = if let Some(not) = filters.get("not") {
-        let filter = not.object().unwrap();
-        condition.add(
-            Condition::all()
-                .add(recursive_prepare_condition::<T>(context, filter))
-                .not(),
-        )
-    } else {
-        condition
-    };
+    dbg!(&condition);
 
     condition
 }

@@ -158,7 +158,7 @@ impl EntityQueryFieldBuilder {
                         //let stmt =
                         // CascadeInputBuilder { context }.parse_object::<T>(context, cascades);
                         let stmt = T::find();
-                        let stmt = stmt.filter(filters);
+                        let stmt = stmt.filter(filters.add(_cascades));
                         let stmt = apply_order(stmt, order_by);
 
                         let db = ctx.data::<DatabaseConnection>()?;

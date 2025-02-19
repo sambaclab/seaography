@@ -83,19 +83,16 @@ impl CascadeTypesMapHelper {
     pub fn prepare_column_condition<T>(
         &self,
         mut condition: Condition,
-        filter: &ObjectAccessor,
         column: &T::Column,
     ) -> SeaResult<Condition>
     where
         T: EntityTrait,
         <T as EntityTrait>::Model: Sync,
     {
-        let filter_info = &self.context.filter_types.string_filter_info;
+        let filter_info = &self.context.cascade_types.string_filter_info;
         dbg!(&filter_info);
-        for operation in filter_info.supported_operations.iter() {
-            if filter.get("is_not_null").is_some() {
-                condition = condition.add(column.is_not_null());
-            }
+        for _operation in filter_info.supported_operations.iter() {
+            condition = condition.add(column.is_not_null());
         }
 
         Ok(condition)
