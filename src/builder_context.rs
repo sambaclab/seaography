@@ -39,7 +39,7 @@ pub struct BuilderContext {
     pub new_order_input: NewOrderInputConfig,
 
     pub filter_input: FilterInputConfig,
-    pub cascade_by_enum: CascadeInputConfig,
+    pub cascade_input: CascadeInputConfig,
     pub active_enum_filter_input: ActiveEnumFilterInputConfig,
 
     pub page_info_object: PageInfoObjectConfig,

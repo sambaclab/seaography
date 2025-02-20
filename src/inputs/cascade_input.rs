@@ -27,7 +27,7 @@ pub struct CascadeInputBuilder {
 impl CascadeInputBuilder {
     /// used to get type name
     pub fn type_name(&self, object_name: &str) -> String {
-        self.context.cascade_by_enum.type_name.as_ref()(object_name)
+        self.context.cascade_input.type_name.as_ref()(object_name)
     }
 
     /// used to get the OrderInput object of a SeaORM entity
