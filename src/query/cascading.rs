@@ -1,6 +1,7 @@
-use async_graphql::dynamic::{ObjectAccessor, ValueAccessor};
+use async_graphql::dynamic::{ListAccessor, ObjectAccessor, ValueAccessor};
 use async_graphql::Value;
-use sea_orm::{Condition, EntityTrait, Iterable};
+use itertools::Itertools;
+use sea_orm::{Condition, EntityTrait, Iden, Iterable};
 
 use crate::BuilderContext;
 use crate::CascadeTypesMapHelper;
@@ -13,10 +14,6 @@ where
     T: EntityTrait,
     <T as EntityTrait>::Model: Sync,
 {
-    // let v = extract_column_names(cascades);
-    // dbg!(&v);
-    // recursive_prepare_condition::<T>(context, cascades.unwrap().object().unwrap());
-    // Condition::all()
     if let Some(cascades) = cascades {
         let cascades = cascades.object().unwrap();
 
@@ -42,7 +39,7 @@ fn extract_column_names(cascades: Option<ValueAccessor>) -> Vec<String> {
 }
 
 // used to prepare recursively the query cascading condition
-
+// Todo: refactor this function to use the new helper functions
 fn recursive_prepare_condition<T>(
     context: &'static BuilderContext,
     filters: ObjectAccessor,
@@ -51,24 +48,44 @@ where
     T: EntityTrait,
     <T as EntityTrait>::Model: Sync,
 {
-    let entity_object_builder = EntityObjectBuilder { context };
     let cascade_types_map_helper = CascadeTypesMapHelper { context };
-    let condition = T::Column::iter().fold(Condition::all(), |condition, column: T::Column| {
-        dbg!(&column);
-        let column_name = entity_object_builder.column_name::<T>(&column);
-        let filter = filters.get(&column_name);
+    T::Column::iter().fold(Condition::all(), |condition, column: T::Column| {
         let filter = filters.get("fields");
-
-        dbg!(&filter.is_some());
-        if let Some(filter) = filter {
-            cascade_types_map_helper
+        match filter {
+            Some(ref value) => {
+                let value = value.list().unwrap();
+                if value.is_empty() {
+                    return cascade_types_map_helper
+                        .prepare_column_condition::<T>(condition, &column)
+                        .unwrap();
+                }
+                if filters_cascada_conditions::<T>(value, &column) {
+                    cascade_types_map_helper
+                        .prepare_column_condition::<T>(condition, &column)
+                        .unwrap()
+                } else {
+                    condition
+                }
+            }
+            _ => cascade_types_map_helper
                 .prepare_column_condition::<T>(condition, &column)
-                .unwrap()
-        } else {
-            condition
+                .unwrap(),
         }
-    });
-    dbg!(&condition);
+    })
+}
 
-    condition
+fn filters_cascada_conditions<T>(filters: ListAccessor<'_>, column: &T::Column) -> bool
+where
+    T: EntityTrait,
+    <T as EntityTrait>::Model: Sync,
+{
+    filters.as_values_slice().iter().any(|v| {
+        let value_str = v
+            .clone()
+            .into_value()
+            .to_string()
+            .trim_matches('"')
+            .to_string();
+        column.to_string() == value_str
+    })
 }
