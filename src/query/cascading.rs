@@ -1,11 +1,8 @@
 use async_graphql::dynamic::{ListAccessor, ObjectAccessor, ValueAccessor};
-use async_graphql::Value;
-use itertools::Itertools;
 use sea_orm::{Condition, EntityTrait, Iden, Iterable};
 
 use crate::BuilderContext;
 use crate::CascadeTypesMapHelper;
-use crate::EntityObjectBuilder;
 pub fn get_cascade_conditions<T>(
     context: &'static BuilderContext,
     cascades: Option<ValueAccessor>,
@@ -21,21 +18,6 @@ where
     } else {
         Condition::all()
     }
-}
-
-fn extract_column_names(cascades: Option<ValueAccessor>) -> Vec<String> {
-    let obj = cascades.map(|cascades| cascades.object().unwrap());
-    if let Some(obj) = obj {
-        if let Some(x) = obj.values().next() {
-            if let Value::List(data) = x.as_value() {
-                return data
-                    .iter()
-                    .map(|x| x.clone().into_value().to_string())
-                    .collect::<Vec<_>>();
-            }
-        }
-    }
-    Vec::new()
 }
 
 // used to prepare recursively the query cascading condition
