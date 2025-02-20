@@ -1,7 +1,7 @@
 use async_graphql::dynamic::{InputObject, InputValue, TypeRef, ValueAccessor};
 use sea_orm::EntityTrait;
 
-use crate::BuilderContext;
+use crate::{BuilderContext, EntityObjectBuilder};
 
 /// The configuration structure for OrderInputBuilder
 pub struct CascadeInputConfig {
@@ -36,7 +36,14 @@ impl CascadeInputBuilder {
         T: EntityTrait,
         <T as EntityTrait>::Model: Sync,
     {
-        InputObject::new("cascade").field(InputValue::new(
+        let entity_object_builder = EntityObjectBuilder {
+            context: self.context,
+        };
+
+        let entity_name = entity_object_builder.type_name::<T>();
+        let filter_name = self.type_name(&entity_name);
+
+        InputObject::new(filter_name).field(InputValue::new(
             "fields",
             TypeRef::named_nn_list(TypeRef::STRING),
         ))

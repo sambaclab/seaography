@@ -99,6 +99,9 @@ impl EntityQueryFieldBuilder {
         let entity_object = EntityObjectBuilder {
             context: self.context,
         };
+        let cascade_input_builder = CascadeInputBuilder {
+            context: self.context,
+        };
 
         let object_name = entity_object.type_name::<T>();
         #[cfg(feature = "offset-pagination")]
@@ -175,7 +178,7 @@ impl EntityQueryFieldBuilder {
         })
         .argument(InputValue::new(
             &self.context.entity_query_field.cascade,
-            TypeRef::named("cascade"),
+            TypeRef::named(cascade_input_builder.type_name(&object_name)),
         ))
         .argument(InputValue::new(
             &self.context.entity_query_field.filters,

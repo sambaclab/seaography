@@ -9,16 +9,15 @@ use sea_orm::{
     ActiveEnum, ActiveModelTrait, DatabaseTransaction, EntityTrait, IntoActiveModel, RelationDef,
 };
 
-use crate::CascadeByEnumBuilder;
 use crate::{
-    entity_object_payload, ActiveEnumBuilder, ActiveEnumFilterInputBuilder, BuilderContext,
-    CascadeInputBuilder, ConnectionObjectBuilder, CursorInputBuilder, EdgeObjectBuilder,
-    EntityAddMutationBuilder, EntityCreateBatchMutationBuilder, EntityCreateOneMutationBuilder,
-    EntityDeleteMutationBuilder, EntityGetFieldBuilder, EntityInputBuilder, EntityObjectBuilder,
-    EntityObjectPayloadBuilder, EntityQueryFieldBuilder, EntityUpdateMutationBuilder,
-    FilterInputBuilder, FilterTypesMapHelper, NewOrderInputBuilder, OffsetInputBuilder,
-    OneToManyLoader, OneToOneLoader, OrderByEnumBuilder, OrderEnumBuilder, OrderInputBuilder,
-    PageInfoObjectBuilder, PageInputBuilder, PaginationInfoObjectBuilder, PaginationInputBuilder,
+    ActiveEnumBuilder, ActiveEnumFilterInputBuilder, BuilderContext, CascadeInputBuilder,
+    ConnectionObjectBuilder, CursorInputBuilder, EdgeObjectBuilder, EntityAddMutationBuilder,
+    EntityCreateBatchMutationBuilder, EntityCreateOneMutationBuilder, EntityDeleteMutationBuilder,
+    EntityGetFieldBuilder, EntityInputBuilder, EntityObjectBuilder, EntityObjectPayloadBuilder,
+    EntityQueryFieldBuilder, EntityUpdateMutationBuilder, FilterInputBuilder, FilterTypesMapHelper,
+    NewOrderInputBuilder, OffsetInputBuilder, OneToManyLoader, OneToOneLoader, OrderByEnumBuilder,
+    OrderEnumBuilder, OrderInputBuilder, PageInfoObjectBuilder, PageInputBuilder,
+    PaginationInfoObjectBuilder, PaginationInputBuilder,
 };
 
 /// The Builder is used to create the Schema for GraphQL
@@ -149,11 +148,11 @@ impl Builder {
         let order_enum = order_enum_builder.enumeration::<T>();
         self.enumerations.push(order_enum);
 
-        let cascade_by_enum_builder = CascadeByEnumBuilder {
-            context: self.context,
-        };
-        let cascade_by_enum = cascade_by_enum_builder.enumeration::<T>();
-        self.enumerations.push(cascade_by_enum);
+        // let cascade_by_enum_builder = CascadeByEnumBuilder {
+        //     context: self.context,
+        // };
+        // let cascade_by_enum = cascade_by_enum_builder.enumeration::<T>();
+        // self.enumerations.push(cascade_by_enum);
 
         let entity_query_field_builder = EntityQueryFieldBuilder {
             context: self.context,

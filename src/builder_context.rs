@@ -1,14 +1,13 @@
 use crate::{
-    ActiveEnumConfig, ActiveEnumFilterInputConfig, ConnectionObjectConfig, CursorInputConfig,
-    EdgeObjectConfig, EntityAddMutationConfig, EntityCreateBatchMutationConfig,
-    EntityCreateOneMutationConfig, EntityDeleteMutationConfig, EntityGetFieldConfig,
-    EntityInputConfig, EntityObjectConfig, EntityObjectPayloadConfig, EntityQueryFieldConfig,
-    EntityUpdateMutationConfig, FilterInputConfig, NewOrderInputConfig, OffsetInputConfig,
-    OrderByEnumConfig, OrderEnumConfig, OrderInputConfig, PageInfoObjectConfig, PageInputConfig,
-    PaginationInfoObjectConfig, PaginationInputConfig,
+    ActiveEnumConfig, ActiveEnumFilterInputConfig, CascadeInputBuilder, CascadeInputConfig,
+    ConnectionObjectConfig, CursorInputConfig, EdgeObjectConfig, EntityAddMutationConfig,
+    EntityCreateBatchMutationConfig, EntityCreateOneMutationConfig, EntityDeleteMutationConfig,
+    EntityGetFieldConfig, EntityInputConfig, EntityObjectConfig, EntityObjectPayloadConfig,
+    EntityQueryFieldConfig, EntityUpdateMutationConfig, FilterInputConfig, NewOrderInputConfig,
+    OffsetInputConfig, OrderByEnumConfig, OrderEnumConfig, OrderInputConfig, PageInfoObjectConfig,
+    PageInputConfig, PaginationInfoObjectConfig, PaginationInputConfig,
 };
 
-use crate::CascadeByEnumConfig;
 pub mod guards;
 pub use guards::*;
 
@@ -28,7 +27,6 @@ pub use cascade_types_map::*;
 #[derive(Default)]
 pub struct BuilderContext {
     pub order_by_enum: OrderByEnumConfig,
-    pub cascade_by_enum: CascadeByEnumConfig,
     pub order_enum: OrderEnumConfig,
     pub active_enum: ActiveEnumConfig,
 
@@ -41,7 +39,7 @@ pub struct BuilderContext {
     pub new_order_input: NewOrderInputConfig,
 
     pub filter_input: FilterInputConfig,
-    // pub cascade_input: CascadeInputConfig,
+    pub cascade_by_enum: CascadeInputConfig,
     pub active_enum_filter_input: ActiveEnumFilterInputConfig,
 
     pub page_info_object: PageInfoObjectConfig,
