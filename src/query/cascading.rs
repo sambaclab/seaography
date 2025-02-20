@@ -6,6 +6,7 @@ use crate::CascadeTypesMapHelper;
 pub fn get_cascade_conditions<T>(
     context: &'static BuilderContext,
     cascades: Option<ValueAccessor>,
+    selected_items: Vec<&str>,
 ) -> Condition
 where
     T: EntityTrait,
@@ -14,7 +15,7 @@ where
     if let Some(cascades) = cascades {
         let cascades = cascades.object().unwrap();
 
-        recursive_prepare_condition::<T>(context, cascades)
+        recursive_prepare_condition::<T>(context, cascades, selected_items)
     } else {
         Condition::all()
     }
@@ -25,6 +26,7 @@ where
 fn recursive_prepare_condition<T>(
     context: &'static BuilderContext,
     filters: ObjectAccessor,
+    selected_items: Vec<&str>,
 ) -> Condition
 where
     T: EntityTrait,
@@ -37,9 +39,14 @@ where
             Some(ref value) => {
                 let value = value.list().unwrap();
                 if value.is_empty() {
-                    return cascade_types_map_helper
-                        .prepare_column_condition::<T>(condition, &column)
-                        .unwrap();
+                    let is_part = filter_query_fields_conditions::<T>(&selected_items, &column);
+                    if is_part {
+                        return cascade_types_map_helper
+                            .prepare_column_condition::<T>(condition, &column)
+                            .unwrap();
+                    } else {
+                        return condition;
+                    }
                 }
                 if filters_cascada_conditions::<T>(value, &column) {
                     cascade_types_map_helper
@@ -68,6 +75,17 @@ where
             .to_string()
             .trim_matches('"')
             .to_string();
+        column.to_string() == value_str
+    })
+}
+
+fn filter_query_fields_conditions<T>(selected_items: &Vec<&str>, column: &T::Column) -> bool
+where
+    T: EntityTrait,
+    <T as EntityTrait>::Model: Sync,
+{
+    selected_items.iter().any(|v| {
+        let value_str = v.to_string();
         column.to_string() == value_str
     })
 }

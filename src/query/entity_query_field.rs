@@ -149,8 +149,15 @@ impl EntityQueryFieldBuilder {
                         let pagination =
                             PaginationInputBuilder { context }.parse_object(pagination);
                         let pagination = get_first(first, pagination);
+
+                        let fields = ctx
+                            .field()
+                            .selection_set()
+                            .map(|field| field.name())
+                            .collect::<Vec<_>>();
+
                         let cascades = ctx.args.get(&context.entity_query_field.cascade);
-                        let cascades = get_cascade_conditions::<T>(context, cascades);
+                        let cascades = get_cascade_conditions::<T>(context, cascades, fields);
 
                         //let stmt =
                         // CascadeInputBuilder { context }.parse_object::<T>(context, cascades);
@@ -161,7 +168,6 @@ impl EntityQueryFieldBuilder {
                         let db = ctx.data::<DatabaseConnection>()?;
 
                         let object = apply_pagination(db, stmt, pagination).await?;
-
                         Ok(Some(resolver_fn(object)))
                     }
                 })
@@ -169,7 +175,6 @@ impl EntityQueryFieldBuilder {
         })
         .argument(InputValue::new(
             &self.context.entity_query_field.cascade,
-            // TypeRef::named(cascade_input_builder.type_name(&object_name)),
             TypeRef::named("cascade"),
         ))
         .argument(InputValue::new(
