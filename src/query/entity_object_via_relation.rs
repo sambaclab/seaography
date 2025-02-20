@@ -16,11 +16,13 @@ use sea_orm::{
 use crate::ConnectionObjectBuilder;
 use crate::{
     apply_memory_pagination, apply_order, apply_pagination, get_filter_conditions,
-    prepare_active_model, BuilderContext, EntityInputBuilder, EntityObjectBuilder,
-    FilterInputBuilder, GuardAction, HashableGroupKey, KeyComplex, NewOrderInputBuilder,
-    OffsetInput, OneToManyLoader, OneToOneLoader, OrderInputBuilder, PageInput, PaginationInput,
-    PaginationInputBuilder, ThanosRelationBuilder,
+    prepare_active_model, BuilderContext, CascadeInputBuilder, EntityInputBuilder,
+    EntityObjectBuilder, FilterInputBuilder, GuardAction, HashableGroupKey, KeyComplex,
+    NewOrderInputBuilder, OffsetInput, OneToManyLoader, OneToOneLoader, OrderInputBuilder,
+    PageInput, PaginationInput, PaginationInputBuilder, ThanosRelationBuilder,
 };
+
+use super::get_cascade_conditions;
 
 /// This builder produces a GraphQL field for an SeaORM entity related trait
 /// that can be added to the entity object
@@ -56,6 +58,7 @@ impl EntityObjectViaRelationBuilder {
         #[cfg(not(feature = "offset-pagination"))]
         let connection_object_builder = ConnectionObjectBuilder { context };
         let filter_input_builder = FilterInputBuilder { context };
+        let cascade_input_builder = CascadeInputBuilder { context };
         let order_input_builder = OrderInputBuilder { context };
         let new_order_input_builder = NewOrderInputBuilder { context };
         let object_name: String = entity_object_builder.type_name::<R>();
@@ -124,6 +127,13 @@ impl EntityObjectViaRelationBuilder {
 
                     let filters = ctx.args.get(&context.entity_query_field.filters);
                     let filters = get_filter_conditions::<R>(context, filters);
+                    let fields = ctx
+                        .field()
+                        .selection_set()
+                        .map(|field| field.name())
+                        .collect::<Vec<_>>();
+                    let cascades = ctx.args.get(&context.entity_query_field.cascade);
+                    let cascades = get_cascade_conditions::<R>(context, cascades, fields);
                     let order_by = ctx.args.get(&context.entity_query_field.order_by);
                     let mut order_by = OrderInputBuilder { context }.parse_object::<R>(order_by);
                     let order = ctx.args.get(&context.entity_query_field.order);
@@ -134,7 +144,7 @@ impl EntityObjectViaRelationBuilder {
                         meta: HashableGroupKey::<R> {
                             stmt,
                             columns: vec![to_col],
-                            filters: Some(filters),
+                            filters: Some(filters.add(cascades)),
                             order_by,
                         },
                     };
@@ -183,6 +193,13 @@ impl EntityObjectViaRelationBuilder {
 
                     let filters = ctx.args.get(&context.entity_query_field.filters);
                     let filters = get_filter_conditions::<R>(context, filters);
+                    let fields = ctx
+                        .field()
+                        .selection_set()
+                        .map(|field| field.name())
+                        .collect::<Vec<_>>();
+                    let cascades = ctx.args.get(&context.entity_query_field.cascade);
+                    let cascades = get_cascade_conditions::<R>(context, cascades, fields);
 
                     let order_by = ctx.args.get(&context.entity_query_field.order_by);
                     let mut order_by = OrderInputBuilder { context }.parse_object::<R>(order_by);
@@ -236,7 +253,7 @@ impl EntityObjectViaRelationBuilder {
                         // TODO optimize query
                         let condition = Condition::all().add(from_col.eq(parent.get(from_col)));
 
-                        let stmt = stmt.filter(condition.add(filters));
+                        let stmt = stmt.filter(condition.add(filters.add(cascades)));
                         let stmt = apply_order(stmt, order_by);
                         apply_pagination::<R>(db, stmt, pagination).await?
                     } else {
@@ -265,6 +282,10 @@ impl EntityObjectViaRelationBuilder {
             .argument(InputValue::new(
                 &context.entity_query_field.filters,
                 TypeRef::named(filter_input_builder.type_name(&object_name)),
+            ))
+            .argument(InputValue::new(
+                &context.entity_query_field.cascade,
+                TypeRef::named(cascade_input_builder.type_name(&object_name)),
             ))
             .argument(InputValue::new(
                 &context.entity_query_field.order_by,
