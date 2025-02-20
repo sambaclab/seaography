@@ -87,9 +87,6 @@ impl EntityQueryFieldBuilder {
         let filter_input_builder = FilterInputBuilder {
             context: self.context,
         };
-        let cascade_input_builder = CascadeInputBuilder {
-            context: self.context,
-        };
         let order_input_builder = OrderInputBuilder {
             context: self.context,
         };
@@ -153,12 +150,12 @@ impl EntityQueryFieldBuilder {
                             PaginationInputBuilder { context }.parse_object(pagination);
                         let pagination = get_first(first, pagination);
                         let cascades = ctx.args.get("cascade");
-                        let _cascades = get_cascade_conditions::<T>(context, cascades);
+                        let cascades = get_cascade_conditions::<T>(context, cascades);
 
                         //let stmt =
                         // CascadeInputBuilder { context }.parse_object::<T>(context, cascades);
                         let stmt = T::find();
-                        let stmt = stmt.filter(filters.add(_cascades));
+                        let stmt = stmt.filter(filters.add(cascades));
                         let stmt = apply_order(stmt, order_by);
 
                         let db = ctx.data::<DatabaseConnection>()?;
