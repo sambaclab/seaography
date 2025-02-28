@@ -111,7 +111,6 @@ impl EntityInputBuilder {
                 None => return object,
             };
             let a = InputValue::new(column_name.clone(), graphql_type.clone());
-            // dbg!(&a);
             object.field(InputValue::new(column_name, graphql_type))
         })
     }
