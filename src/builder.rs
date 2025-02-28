@@ -148,12 +148,6 @@ impl Builder {
         let order_enum = order_enum_builder.enumeration::<T>();
         self.enumerations.push(order_enum);
 
-        // let cascade_by_enum_builder = CascadeByEnumBuilder {
-        //     context: self.context,
-        // };
-        // let cascade_by_enum = cascade_by_enum_builder.enumeration::<T>();
-        // self.enumerations.push(cascade_by_enum);
-
         let entity_query_field_builder = EntityQueryFieldBuilder {
             context: self.context,
         };
