@@ -3,9 +3,7 @@ use sea_orm::EntityTrait;
 
 use crate::{BuilderContext, EntityObjectBuilder};
 
-/// The configuration structure for OrderInputBuilder
 pub struct CascadeInputConfig {
-    /// used to format OrderInput object name
     pub type_name: crate::SimpleNamingFn,
 }
 
