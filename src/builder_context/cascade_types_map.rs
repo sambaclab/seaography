@@ -1,12 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use async_graphql::dynamic::{InputObject, InputValue, ObjectAccessor, TypeRef};
+use async_graphql::dynamic::{InputObject, InputValue, TypeRef};
 use sea_orm::{ColumnTrait, Condition, EntityTrait};
 
 use crate::{BuilderContext, EntityObjectBuilder, SeaResult};
-
-type FnCascadeCondition =
-    Box<dyn Fn(Condition, &ObjectAccessor) -> SeaResult<Condition> + Send + Sync>;
 
 /// The configuration for FilterTypesMapHelper
 pub struct CascadeTypesMapConfig {
@@ -90,7 +87,6 @@ impl CascadeTypesMapHelper {
         <T as EntityTrait>::Model: Sync,
     {
         let filter_info = &self.context.cascade_types.string_filter_info;
-        dbg!(&filter_info);
         for _operation in filter_info.supported_operations.iter() {
             condition = condition.add(column.is_not_null());
         }
