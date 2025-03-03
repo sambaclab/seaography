@@ -1,4 +1,6 @@
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 use async_graphql::dynamic::{Field, FieldFuture, FieldValue, InputValue, ObjectAccessor, TypeRef};
 use sea_orm::{
@@ -8,7 +10,7 @@ use sea_orm::{
 };
 
 use crate::{
-    prepare_active_model, BuilderContext, EntityInputBuilder, EntityObjectBuilder,
+    prepare_active_model, BuilderContext, DataMap, EntityInputBuilder, EntityObjectBuilder,
     EntityObjectPayloadBuilder, GuardAction, ThanosRelationBuilder,
 };
 
@@ -118,12 +120,13 @@ impl EntityAddMutationBuilder {
 
                     let entity_input_builder = EntityInputBuilder { context };
                     let entity_object_builder = EntityObjectBuilder { context };
+                    let object_name: String = entity_object_builder.type_name::<T>();
 
-                    let mut active_models: Vec<A> = Vec::new();
                     let mut condition_in: BTreeMap<String, HashSet<sea_orm::Value>> =
                         BTreeMap::new();
-
+                    let data_pointer: DataMap = Arc::new(Mutex::new(HashMap::new()));
                     let mut num_uids = 0;
+
                     for input in ctx
                         .args
                         .get(&context.entity_add_mutation.data_field)
@@ -131,6 +134,7 @@ impl EntityAddMutationBuilder {
                         .list()?
                         .iter()
                     {
+                        let mut data = data_pointer.lock().await;
                         let input_object = &input.object()?;
                         for (column, _) in input_object.iter() {
                             let field_guard = field_guards.get(&format!(
@@ -154,27 +158,58 @@ impl EntityAddMutationBuilder {
                                 };
                             }
                         }
+
+                        data.entry(object_name.clone()).or_default().insert(
+                            entity_input_builder.parse_pks::<T>(&input_object)?,
+                            entity_input_builder.parse_object::<T>(input_object)?,
+                        );
+
+                        drop(data);
                         for related_entity in related_entities_iter.clone() {
-                            num_uids += related_entity
-                                .insert_related(context, input_object, &transaction, true, upsert)
+                            related_entity
+                                .prepare_active_model_tree(
+                                    context,
+                                    input_object,
+                                    data_pointer.clone(),
+                                )
                                 .await?;
                         }
-
-                        let active_model = prepare_active_model::<T, A>(
-                            &entity_input_builder,
-                            &entity_object_builder,
-                            input_object,
-                        )?;
                         let _ = prepare_in_conditions::<T, A>(
                             &entity_input_builder,
                             &entity_object_builder,
                             input_object,
                             &mut condition_in,
                         );
-                        active_models.push(active_model);
                         // let result = active_model.clone().insert(&transaction).await?;
                     }
+                    println!("1: {:?}", data_pointer);
+                    for related_entity in related_entities_iter.clone() {
+                        num_uids += related_entity
+                            .insert_related(
+                                context,
+                                data_pointer.clone(),
+                                &transaction,
+                                true,
+                                upsert,
+                            )
+                            .await?;
+                    }
+                    println!("2: {:?}", data_pointer);
+                    let mut data = data_pointer.lock().await;
+                    let active_models = if let Some(entity_data) = data.remove(&object_name) {
+                        let mut active_models = vec![];
+                        for (_, mut entity) in entity_data {
+                            active_models.push(new_prepare_active_model::<T, A>(
+                                &entity_object_builder,
+                                &mut entity,
+                            )?);
+                        }
+                        active_models
+                    } else {
+                        vec![]
+                    };
                     num_uids += active_models.len();
+
                     let _ = if upsert {
                         T::insert_many(active_models).on_conflict(
                             sea_orm::sea_query::OnConflict::columns(
@@ -190,20 +225,17 @@ impl EntityAddMutationBuilder {
                     }
                     .exec(&transaction)
                     .await?;
-
-                    for input in ctx
-                        .args
-                        .get(&context.entity_add_mutation.data_field)
-                        .unwrap()
-                        .list()?
-                        .iter()
-                    {
-                        let input_object = &input.object()?;
-                        for related_entity in related_entities_iter.clone() {
-                            num_uids += related_entity
-                                .insert_related(context, input_object, &transaction, false, upsert)
-                                .await?;
-                        }
+                    drop(data);
+                    for related_entity in related_entities_iter {
+                        num_uids += related_entity
+                            .insert_related(
+                                context,
+                                data_pointer.clone(),
+                                &transaction,
+                                false,
+                                upsert,
+                            )
+                            .await?;
                     }
                     let condition =
                         prepare_conditions::<T, A>(&entity_object_builder, &condition_in, db)
@@ -217,7 +249,7 @@ impl EntityAddMutationBuilder {
         )
         .argument(InputValue::new(
             &context.entity_add_mutation.data_field,
-            TypeRef::named_nn_list_nn(entity_input_builder.insert_type_name::<T>()),
+            TypeRef::named_nn_list_nn(entity_input_builder.add_type_name::<T>()),
         ))
         .argument(InputValue::new(
             &context.entity_add_mutation.upsert_field,
@@ -264,7 +296,6 @@ where
     } else {
         None
     };
-    println!("{:?}", y);
     let mut condition = Condition::all();
     for column in T::Column::iter() {
         // used to skip auto created primary keys
@@ -322,4 +353,38 @@ where
     }
 
     Ok(())
+}
+
+pub fn new_prepare_active_model<T, A>(
+    entity_object_builder: &EntityObjectBuilder,
+    data: &mut BTreeMap<String, sea_orm::Value>,
+) -> async_graphql::Result<A>
+where
+    T: EntityTrait,
+    <T as EntityTrait>::Model: Sync,
+    <T as EntityTrait>::Model: IntoActiveModel<A>,
+    A: ActiveModelTrait<Entity = T> + sea_orm::ActiveModelBehavior + std::marker::Send,
+{
+    let mut active_model = A::default();
+
+    for column in T::Column::iter() {
+        // used to skip auto created primary keys
+        let auto_increment = match <T::PrimaryKey as PrimaryKeyToColumn>::from_column(column) {
+            Some(_) => T::PrimaryKey::auto_increment(),
+            None => false,
+        };
+
+        if auto_increment {
+            continue;
+        }
+
+        match data.remove(&entity_object_builder.column_name::<T>(&column)) {
+            Some(value) => {
+                active_model.set(column, value);
+            }
+            None => continue,
+        }
+    }
+
+    Ok(active_model)
 }

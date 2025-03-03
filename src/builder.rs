@@ -1,3 +1,6 @@
+use std::collections::{BTreeMap, HashMap};
+use std::sync::Arc;
+
 use async_graphql::{
     dataloader::DataLoader,
     dynamic::{
@@ -11,13 +14,13 @@ use sea_orm::{
 
 use crate::{
     ActiveEnumBuilder, ActiveEnumFilterInputBuilder, BuilderContext, ConnectionObjectBuilder,
-    CursorInputBuilder, EdgeObjectBuilder, EntityAddMutationBuilder,
+    CursorInputBuilder, DataMap, EdgeObjectBuilder, EntityAddMutationBuilder,
     EntityCreateBatchMutationBuilder, EntityCreateOneMutationBuilder, EntityDeleteMutationBuilder,
     EntityGetFieldBuilder, EntityInputBuilder, EntityObjectBuilder, EntityObjectPayloadBuilder,
     EntityQueryFieldBuilder, EntityUpdateMutationBuilder, FilterInputBuilder, FilterTypesMapHelper,
-    NewOrderInputBuilder, OffsetInputBuilder, OneToManyLoader, OneToOneLoader, OrderByEnumBuilder,
-    OrderEnumBuilder, OrderInputBuilder, PageInfoObjectBuilder, PageInputBuilder,
-    PaginationInfoObjectBuilder, PaginationInputBuilder,
+    Map, NewOrderInputBuilder, OffsetInputBuilder, OneToManyLoader, OneToOneLoader,
+    OrderByEnumBuilder, OrderEnumBuilder, OrderInputBuilder, PageInfoObjectBuilder,
+    PageInputBuilder, PaginationInfoObjectBuilder, PaginationInputBuilder, TupleMap,
 };
 
 /// The Builder is used to create the Schema for GraphQL
@@ -185,26 +188,31 @@ impl Builder {
             context: self.context,
         };
 
-        let (entity_insert_input_object, entity_update_input_object) =
+        let entity_insert_input_object = entity_input_builder.insert_input_object::<T>();
+        let entity_update_input_object = entity_input_builder.update_input_object::<T>();
+        let (entity_add_input_object, entity_ref_input_object) =
             related_entities_input.into_iter().fold(
                 (
-                    entity_input_builder.insert_input_object::<T>(),
-                    entity_input_builder.update_input_object::<T>(),
+                    entity_input_builder.add_input_object::<T>(),
+                    entity_input_builder.ref_input_object::<T>(),
                 ),
-                |(insert_obj, update_obj), input| {
-                    (insert_obj.field(input.0), update_obj.field(input.1))
+                |(add_obj, ref_obj), (input_add, input_ref)| {
+                    (add_obj.field(input_add), ref_obj.field(input_ref))
                 },
             );
 
-        self.inputs
-            .extend(vec![entity_insert_input_object, entity_update_input_object]);
+        self.inputs.extend(vec![
+            entity_insert_input_object,
+            entity_update_input_object,
+            entity_add_input_object,
+            entity_ref_input_object,
+        ]);
 
         // create one mutation
         let entity_create_one_mutation_builder = EntityCreateOneMutationBuilder {
             context: self.context,
         };
-        let create_one_mutation =
-            entity_create_one_mutation_builder.to_field::<T, A, I>(related_entities_iter.clone());
+        let create_one_mutation = entity_create_one_mutation_builder.to_field::<T, A>();
         self.mutations.push(create_one_mutation);
 
         // create batch mutation
@@ -212,8 +220,7 @@ impl Builder {
             EntityCreateBatchMutationBuilder {
                 context: self.context,
             };
-        let create_batch_mutation =
-            entity_create_batch_mutation_builder.to_field::<T, A, I>(related_entities_iter.clone());
+        let create_batch_mutation = entity_create_batch_mutation_builder.to_field::<T, A>();
         self.mutations.push(create_batch_mutation);
 
         if cfg!(feature = "offset-pagination") {
@@ -407,10 +414,16 @@ pub trait ThanosRelationBuilder {
         &self,
         context: &'static crate::BuilderContext,
     ) -> (async_graphql::dynamic::InputValue, InputValue);
-    async fn insert_related(
+    async fn prepare_active_model_tree(
         &self,
         context: &'static crate::BuilderContext,
         input_object: &ObjectAccessor<'_>,
+        data: DataMap,
+    ) -> async_graphql::Result<Option<TupleMap>>;
+    async fn insert_related(
+        &self,
+        context: &'static crate::BuilderContext,
+        data: DataMap,
         transaction: &DatabaseTransaction,
         owner: bool,
         upsert: bool,
