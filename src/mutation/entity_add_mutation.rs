@@ -166,13 +166,23 @@ impl EntityAddMutationBuilder {
 
                         drop(data);
                         for related_entity in related_entities_iter.clone() {
-                            related_entity
+                            let related_column = related_entity
                                 .prepare_active_model_tree(
                                     context,
                                     input_object,
                                     data_pointer.clone(),
                                 )
                                 .await?;
+
+                            if let Some(related_column) = related_column {
+                                let mut data = data_pointer.lock().await;
+                                data.entry(object_name.clone())
+                                    .or_default()
+                                    .entry(related_column.0)
+                                    .or_default()
+                                    .insert(related_column.1 .0, related_column.1 .1);
+                                drop(data);
+                            }
                         }
                         let _ = prepare_in_conditions::<T, A>(
                             &entity_input_builder,
@@ -182,7 +192,6 @@ impl EntityAddMutationBuilder {
                         );
                         // let result = active_model.clone().insert(&transaction).await?;
                     }
-                    println!("1: {:?}", data_pointer);
                     for related_entity in related_entities_iter.clone() {
                         num_uids += related_entity
                             .insert_related(
@@ -190,49 +199,6 @@ impl EntityAddMutationBuilder {
                                 data_pointer.clone(),
                                 &transaction,
                                 true,
-                                upsert,
-                            )
-                            .await?;
-                    }
-                    println!("2: {:?}", data_pointer);
-                    let mut data = data_pointer.lock().await;
-                    let active_models = if let Some(entity_data) = data.remove(&object_name) {
-                        let mut active_models = vec![];
-                        for (_, mut entity) in entity_data {
-                            active_models.push(new_prepare_active_model::<T, A>(
-                                &entity_object_builder,
-                                &mut entity,
-                            )?);
-                        }
-                        active_models
-                    } else {
-                        vec![]
-                    };
-                    num_uids += active_models.len();
-
-                    let _ = if upsert {
-                        T::insert_many(active_models).on_conflict(
-                            sea_orm::sea_query::OnConflict::columns(
-                                T::PrimaryKey::iter()
-                                    .map(|pk| pk.into_column())
-                                    .collect::<Vec<T::Column>>(),
-                            )
-                            .update_columns(T::Column::iter())
-                            .to_owned(),
-                        )
-                    } else {
-                        T::insert_many(active_models)
-                    }
-                    .exec(&transaction)
-                    .await?;
-                    drop(data);
-                    for related_entity in related_entities_iter {
-                        num_uids += related_entity
-                            .insert_related(
-                                context,
-                                data_pointer.clone(),
-                                &transaction,
-                                false,
                                 upsert,
                             )
                             .await?;

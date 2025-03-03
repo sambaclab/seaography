@@ -124,12 +124,11 @@ impl EntityInputBuilder {
                 if rel.def().is_owner {
                     None
                 } else {
-                    let col = rel.def().to_col.to_string().to_lower_camel_case();
+                    let col = rel.def().from_col.to_string().to_lower_camel_case();
                     Some(col)
                 }
             })
             .collect();
-
         T::Column::iter().fold(InputObject::new(name), |object, column| {
             let column_name = entity_object_builder.column_name::<T>(&column);
             if (ty == "add" || ty == "ref") && foreign_keys.contains(&column_name) {
@@ -228,15 +227,6 @@ impl EntityInputBuilder {
         for column in T::PrimaryKey::iter() {
             let column_name = entity_object_builder.column_name::<T>(&column.into_column());
 
-            if column_name == "uid" {
-                let uid = Uuid::new_v4();
-                map.insert(
-                    column_name,
-                    sea_orm::Value::String(Some(Box::new(uid.to_string()))),
-                );
-                continue;
-            }
-
             let value = match object.get(&column_name) {
                 Some(value) => value,
                 None => continue,
@@ -269,14 +259,6 @@ impl EntityInputBuilder {
 
         for column in T::Column::iter() {
             let column_name = entity_object_builder.column_name::<T>(&column);
-            if column_name == "uid" {
-                let uid = Uuid::new_v4();
-                map.insert(
-                    column_name,
-                    sea_orm::Value::String(Some(Box::new(uid.to_string()))),
-                );
-                continue;
-            }
 
             let value = match object.get(&column_name) {
                 Some(value) => value,

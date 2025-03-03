@@ -525,6 +525,7 @@ impl EntityObjectViaRelationBuilder {
             _ => {
                 // We can use unwrap here cuz we enter to this function if and only if the
                 // input_object contains the related_entity
+                let (to_column, from_column) = (from_column, to_column);
                 let input_value = input_object.get(name).unwrap();
                 let child_input_object = input_value.object()?;
                 let mut data = data_pointer.lock().await;
@@ -536,8 +537,8 @@ impl EntityObjectViaRelationBuilder {
                     val.clone()
                 } else {
                     return Err(async_graphql::Error::new(format!(
-                        "Foreign key relating {} with {} shouldn't be Null!",
-                        object_name, parent_name
+                        "Foreign key relating {}.{} with {}.{} shouldn't be Null!",
+                        object_name, from_column, parent_name, to_column
                     )));
                 };
                 data.entry(object_name.clone())
