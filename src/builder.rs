@@ -1,6 +1,3 @@
-use std::collections::{BTreeMap, HashMap};
-use std::sync::Arc;
-
 use async_graphql::{
     dataloader::DataLoader,
     dynamic::{
@@ -18,9 +15,9 @@ use crate::{
     EntityCreateBatchMutationBuilder, EntityCreateOneMutationBuilder, EntityDeleteMutationBuilder,
     EntityGetFieldBuilder, EntityInputBuilder, EntityObjectBuilder, EntityObjectPayloadBuilder,
     EntityQueryFieldBuilder, EntityUpdateMutationBuilder, FilterInputBuilder, FilterTypesMapHelper,
-    Map, NewOrderInputBuilder, OffsetInputBuilder, OneToManyLoader, OneToOneLoader,
-    OrderByEnumBuilder, OrderEnumBuilder, OrderInputBuilder, PageInfoObjectBuilder,
-    PageInputBuilder, PaginationInfoObjectBuilder, PaginationInputBuilder, TupleMap,
+    NewOrderInputBuilder, OffsetInputBuilder, OneToManyLoader, OneToOneLoader, OrderByEnumBuilder,
+    OrderEnumBuilder, OrderInputBuilder, PageInfoObjectBuilder, PageInputBuilder,
+    PaginationInfoObjectBuilder, PaginationInputBuilder, TupleMap,
 };
 
 /// The Builder is used to create the Schema for GraphQL
@@ -419,6 +416,7 @@ pub trait ThanosRelationBuilder {
         context: &'static crate::BuilderContext,
         input_object: &ObjectAccessor<'_>,
         data: DataMap,
+        parent_uid: Option<String>,
     ) -> async_graphql::Result<Option<TupleMap>>;
     async fn insert_related(
         &self,

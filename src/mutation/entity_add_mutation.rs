@@ -10,8 +10,8 @@ use sea_orm::{
 };
 
 use crate::{
-    prepare_active_model, BuilderContext, DataMap, EntityInputBuilder, EntityObjectBuilder,
-    EntityObjectPayloadBuilder, GuardAction, ThanosRelationBuilder,
+    BuilderContext, DataMap, EntityInputBuilder, EntityObjectBuilder, EntityObjectPayloadBuilder,
+    GuardAction, ThanosRelationBuilder,
 };
 
 /// The configuration structure of EntityAddMutationBuilder
@@ -158,10 +158,10 @@ impl EntityAddMutationBuilder {
                                 };
                             }
                         }
-
+                        let uid = entity_input_builder.generate_uid::<T>();
                         data.entry(object_name.clone()).or_default().insert(
-                            entity_input_builder.parse_pks::<T>(&input_object)?,
-                            entity_input_builder.parse_object::<T>(input_object)?,
+                            entity_input_builder.parse_pks::<T>(&input_object, uid.clone())?,
+                            entity_input_builder.parse_object::<T>(input_object, uid.clone())?,
                         );
 
                         drop(data);
@@ -171,6 +171,7 @@ impl EntityAddMutationBuilder {
                                     context,
                                     input_object,
                                     data_pointer.clone(),
+                                    uid.clone(),
                                 )
                                 .await?;
 
@@ -189,9 +190,11 @@ impl EntityAddMutationBuilder {
                             &entity_object_builder,
                             input_object,
                             &mut condition_in,
+                            uid.clone(),
                         );
                         // let result = active_model.clone().insert(&transaction).await?;
                     }
+                    println!("{:?}", data_pointer);
                     for related_entity in related_entities_iter.clone() {
                         num_uids += related_entity
                             .insert_related(
@@ -286,6 +289,7 @@ pub fn prepare_in_conditions<T, A>(
     entity_object_builder: &EntityObjectBuilder,
     input_object: &ObjectAccessor<'_>,
     condition_in: &mut BTreeMap<String, HashSet<sea_orm::Value>>,
+    uid: Option<String>,
 ) -> async_graphql::Result<()>
 where
     T: EntityTrait,
@@ -293,7 +297,7 @@ where
     <T as EntityTrait>::Model: IntoActiveModel<A>,
     A: ActiveModelTrait<Entity = T> + sea_orm::ActiveModelBehavior + std::marker::Send,
 {
-    let mut data = entity_input_builder.parse_object::<T>(input_object)?;
+    let mut data = entity_input_builder.parse_object::<T>(input_object, uid)?;
 
     for column in T::Column::iter() {
         // used to skip auto created primary keys

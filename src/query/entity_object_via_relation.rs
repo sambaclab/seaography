@@ -3,14 +3,13 @@ use std::fmt::Debug;
 
 use async_graphql::{
     dataloader::DataLoader,
-    dynamic::{Field, FieldFuture, FieldValue, InputValue, ObjectAccessor, TypeRef, ValueAccessor},
+    dynamic::{Field, FieldFuture, FieldValue, InputValue, ObjectAccessor, TypeRef},
     Error,
 };
 use heck::{ToLowerCamelCase, ToSnakeCase, ToUpperCamelCase};
 use sea_orm::{
-    entity, ActiveModelTrait, ColumnTrait, Condition, DatabaseConnection, DatabaseTransaction,
-    EntityTrait, Iden, IntoActiveModel, Iterable, ModelTrait, PrimaryKeyToColumn, QueryFilter,
-    Related, RelationDef,
+    ActiveModelTrait, ColumnTrait, Condition, DatabaseConnection, DatabaseTransaction, EntityTrait,
+    Iden, IntoActiveModel, Iterable, ModelTrait, PrimaryKeyToColumn, QueryFilter, Related,
 };
 
 #[cfg(not(feature = "offset-pagination"))]
@@ -408,6 +407,7 @@ impl EntityObjectViaRelationBuilder {
         input_object: &ObjectAccessor<'_>,
         data_pointer: DataMap,
         related_entities: I,
+        parent_uid: Option<String>,
     ) -> async_graphql::Result<Option<TupleMap>>
     where
         T: Related<R>,
@@ -447,19 +447,24 @@ impl EntityObjectViaRelationBuilder {
                 // We can use unwrap here cuz we enter to this function if and only if the
                 // input_object contains the related_entity
                 //
+                let mut child_uids = vec![];
                 let input_value = input_object.get(name).unwrap();
                 let input_values = input_value.list()?;
-                let parent_object = entity_input_builder.parse_object::<T>(input_object)?;
+                let parent_object =
+                    entity_input_builder.parse_object::<T>(input_object, parent_uid)?;
                 let mut entity_data = HashMap::new();
                 let mut junction_data = HashMap::new();
                 for input_value in input_values.iter() {
                     let child_input_object = input_value.object()?;
-                    let mut child_pks = entity_input_builder.parse_pks::<R>(&child_input_object)?;
+                    let child_uid = entity_input_builder.generate_uid::<R>();
+                    child_uids.push(child_uid.clone());
+                    let mut child_pks = entity_input_builder
+                        .parse_pks::<R>(&child_input_object, child_uid.clone())?;
                     let mut child_object =
-                        entity_input_builder.parse_object::<R>(&child_input_object)?;
+                        entity_input_builder.parse_object::<R>(&child_input_object, child_uid)?;
                     if !is_via {
                         if let Some(val) = parent_object.get(&from_column) {
-                            if let Some(is_pk) = child_pks.get(&to_column) {
+                            if let Some(_) = child_pks.get(&to_column) {
                                 child_pks.insert(to_column.clone(), val.clone());
                             }
                             child_object.insert(to_column.clone(), val.clone());
@@ -498,7 +503,7 @@ impl EntityObjectViaRelationBuilder {
                         .extend(junction_data);
                 }
                 drop(data);
-                for input_value in input_values.iter() {
+                for (counter, input_value) in input_values.iter().enumerate() {
                     let child_input_object = input_value.object()?;
                     for related_entity in related_entities.clone() {
                         let related_column = related_entity
@@ -506,6 +511,7 @@ impl EntityObjectViaRelationBuilder {
                                 context,
                                 &child_input_object,
                                 data_pointer.clone(),
+                                child_uids[counter].clone(),
                             )
                             .await?;
 
@@ -529,10 +535,12 @@ impl EntityObjectViaRelationBuilder {
                 let input_value = input_object.get(name).unwrap();
                 let child_input_object = input_value.object()?;
                 let mut data = data_pointer.lock().await;
-                let child_pks = entity_input_builder.parse_pks::<R>(&child_input_object)?;
-                let child_data = entity_input_builder.parse_object::<R>(&child_input_object)?;
-                let parent_data = entity_input_builder.parse_object::<T>(input_object)?;
-                let parent_pks = entity_input_builder.parse_pks::<T>(input_object)?;
+                let child_uid = entity_input_builder.generate_uid::<R>();
+                let child_pks =
+                    entity_input_builder.parse_pks::<R>(&child_input_object, child_uid.clone())?;
+                let child_data = entity_input_builder
+                    .parse_object::<R>(&child_input_object, child_uid.clone())?;
+                let parent_pks = entity_input_builder.parse_pks::<T>(input_object, parent_uid)?;
                 let to_column_value = if let Some(val) = child_data.get(&from_column) {
                     val.clone()
                 } else {
@@ -551,6 +559,7 @@ impl EntityObjectViaRelationBuilder {
                             context,
                             &child_input_object,
                             data_pointer.clone(),
+                            child_uid.clone(),
                         )
                         .await?;
                     if let Some(related_column) = related_column {

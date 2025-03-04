@@ -207,9 +207,26 @@ impl EntityInputBuilder {
         self.input_object::<T>("ref")
     }
 
+    pub fn generate_uid<T>(&self) -> Option<String>
+    where
+        T: EntityTrait,
+        <T as EntityTrait>::Model: Sync,
+    {
+        let entity_object_builder = EntityObjectBuilder {
+            context: self.context,
+        };
+        for column in T::Column::iter() {
+            let column_name = entity_object_builder.column_name::<T>(&column);
+            if column_name == "uid" {
+                return Some(Uuid::new_v4().to_string());
+            }
+        }
+        None
+    }
     pub fn parse_pks<T>(
         &self,
         object: &ObjectAccessor,
+        uid: Option<String>,
     ) -> SeaResult<BTreeMap<String, sea_orm::Value>>
     where
         T: EntityTrait,
@@ -227,6 +244,16 @@ impl EntityInputBuilder {
         for column in T::PrimaryKey::iter() {
             let column_name = entity_object_builder.column_name::<T>(&column.into_column());
 
+            if column_name == "uid" {
+                if let Some(ref uid) = uid {
+                    map.insert(
+                        column_name,
+                        sea_orm::Value::String(Some(Box::new(uid.to_owned()))),
+                    );
+                    continue;
+                }
+            }
+
             let value = match object.get(&column_name) {
                 Some(value) => value,
                 None => continue,
@@ -243,6 +270,7 @@ impl EntityInputBuilder {
     pub fn parse_object<T>(
         &self,
         object: &ObjectAccessor,
+        uid: Option<String>,
     ) -> SeaResult<BTreeMap<String, sea_orm::Value>>
     where
         T: EntityTrait,
@@ -259,6 +287,15 @@ impl EntityInputBuilder {
 
         for column in T::Column::iter() {
             let column_name = entity_object_builder.column_name::<T>(&column);
+            if column_name == "uid" {
+                if let Some(ref uid) = uid {
+                    map.insert(
+                        column_name,
+                        sea_orm::Value::String(Some(Box::new(uid.to_owned()))),
+                    );
+                    continue;
+                }
+            }
 
             let value = match object.get(&column_name) {
                 Some(value) => value,

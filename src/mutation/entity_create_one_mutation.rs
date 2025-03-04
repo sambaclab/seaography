@@ -159,7 +159,7 @@ where
     <T as EntityTrait>::Model: IntoActiveModel<A>,
     A: ActiveModelTrait<Entity = T> + sea_orm::ActiveModelBehavior + std::marker::Send,
 {
-    let mut data = entity_input_builder.parse_object::<T>(input_object)?;
+    let mut data = entity_input_builder.parse_object::<T>(input_object, None)?;
 
     let mut active_model = A::default();
 
