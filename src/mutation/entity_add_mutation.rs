@@ -194,7 +194,6 @@ impl EntityAddMutationBuilder {
                         );
                         // let result = active_model.clone().insert(&transaction).await?;
                     }
-                    println!("{:?}", data_pointer);
                     for related_entity in related_entities_iter.clone() {
                         num_uids += related_entity
                             .insert_related(
@@ -206,6 +205,47 @@ impl EntityAddMutationBuilder {
                             )
                             .await?;
                     }
+                    let mut data = data_pointer.lock().await;
+                    let entity_data = data.remove(&object_name.clone());
+                    if let Some(entity_data) = entity_data {
+                        let mut active_models = vec![];
+                        for (_, mut entity) in entity_data {
+                            active_models.push(new_prepare_active_model::<T, A>(
+                                &entity_object_builder,
+                                &mut entity,
+                            )?);
+                        }
+
+                        num_uids += active_models.len();
+                        if upsert {
+                            T::insert_many(active_models).on_conflict(
+                                sea_orm::sea_query::OnConflict::columns(
+                                    T::PrimaryKey::iter()
+                                        .map(|pk| pk.into_column())
+                                        .collect::<Vec<T::Column>>(),
+                                )
+                                .update_columns(T::Column::iter())
+                                .to_owned(),
+                            )
+                        } else {
+                            T::insert_many(active_models)
+                        }
+                        .exec(&transaction)
+                        .await?;
+                    }
+                    drop(data);
+                    for related_entity in related_entities_iter.clone() {
+                        num_uids += related_entity
+                            .insert_related(
+                                context,
+                                data_pointer.clone(),
+                                &transaction,
+                                false,
+                                upsert,
+                            )
+                            .await?;
+                    }
+
                     let condition =
                         prepare_conditions::<T, A>(&entity_object_builder, &condition_in, db)
                             .await?;

@@ -318,15 +318,20 @@ impl EntityObjectRelationBuilder {
         let object_name = entity_object_builder.type_name::<R>();
         let mut num_uids = 0;
 
-        if owner != relation_definition.is_owner {
-            for related_entity in related_entities.clone() {
-                num_uids += related_entity
-                    .insert_related(context, data_pointer.clone(), transaction, true, upsert)
-                    .await?;
-            }
+        let entity_data = if owner != relation_definition.is_owner {
             let mut data = data_pointer.lock().await;
-            let entity_data = data.remove(&object_name);
-            if let Some(entity_data) = entity_data {
+            Some(data.remove(&object_name))
+        } else {
+            None
+        };
+
+        for related_entity in related_entities.clone() {
+            num_uids += related_entity
+                .insert_related(context, data_pointer.clone(), transaction, owner, upsert)
+                .await?;
+        }
+        if owner != relation_definition.is_owner {
+            if let Some(entity_data) = entity_data.unwrap() {
                 let mut active_models = vec![];
                 for (_, mut entity) in entity_data {
                     active_models.push(new_prepare_active_model::<R, B>(
@@ -351,12 +356,6 @@ impl EntityObjectRelationBuilder {
                 }
                 .exec(transaction)
                 .await?;
-            }
-            drop(data);
-            for related_entity in related_entities.clone() {
-                num_uids += related_entity
-                    .insert_related(context, data_pointer.clone(), transaction, false, upsert)
-                    .await?;
             }
         }
 

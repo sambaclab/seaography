@@ -355,16 +355,19 @@ impl EntityObjectViaRelationBuilder {
             Some(def) => (def, true),
             None => (<T as Related<R>>::to(), false),
         };
-
-        if (owner != via_relation_definition.is_owner) || (owner == is_via) {
-            for related_entity in related_entities.clone() {
-                num_uids += related_entity
-                    .insert_related(context, data_pointer.clone(), transaction, true, upsert)
-                    .await?;
-            }
+        let entity_data = if (owner != via_relation_definition.is_owner) || (owner == is_via) {
             let mut data = data_pointer.lock().await;
-            let entity_data = data.remove(&object_name);
-            if let Some(entity_data) = entity_data {
+            Some(data.remove(&object_name))
+        } else {
+            None
+        };
+        for related_entity in related_entities.clone() {
+            num_uids += related_entity
+                .insert_related(context, data_pointer.clone(), transaction, owner, upsert)
+                .await?;
+        }
+        if owner != via_relation_definition.is_owner || is_via {
+            if let Some(entity_data) = entity_data.unwrap() {
                 let mut active_models = vec![];
                 for (_, mut entity) in entity_data {
                     active_models.push(new_prepare_active_model::<R, B>(
@@ -389,12 +392,6 @@ impl EntityObjectViaRelationBuilder {
                 }
                 .exec(transaction)
                 .await?;
-            }
-            drop(data);
-            for related_entity in related_entities.clone() {
-                num_uids += related_entity
-                    .insert_related(context, data_pointer.clone(), transaction, false, upsert)
-                    .await?;
             }
         }
 
@@ -431,19 +428,28 @@ impl EntityObjectViaRelationBuilder {
             None => (<T as Related<R>>::to(), false),
         };
 
-        let to_column = via_relation_definition
-            .to_col
-            .to_string()
-            .to_lower_camel_case();
+        let to_column = if is_via {
+            <T as Related<R>>::to()
+                .to_col
+                .to_string()
+                .to_lower_camel_case()
+        } else {
+            via_relation_definition
+                .to_col
+                .to_string()
+                .to_lower_camel_case()
+        };
         let from_column = via_relation_definition
             .from_col
             .to_string()
             .to_lower_camel_case();
+
         let res = match (
             via_relation_definition.is_owner,
             via_relation_definition.rel_type,
+            is_via,
         ) {
-            (true, sea_orm::RelationType::HasMany) => {
+            (true, sea_orm::RelationType::HasMany, false) | (_, _, true) => {
                 // We can use unwrap here cuz we enter to this function if and only if the
                 // input_object contains the related_entity
                 //
@@ -452,8 +458,14 @@ impl EntityObjectViaRelationBuilder {
                 let input_values = input_value.list()?;
                 let parent_object =
                     entity_input_builder.parse_object::<T>(input_object, parent_uid)?;
-                let mut entity_data = HashMap::new();
-                let mut junction_data = HashMap::new();
+                let mut entity_data: HashMap<
+                    BTreeMap<String, sea_orm::Value>,
+                    BTreeMap<String, sea_orm::Value>,
+                > = HashMap::new();
+                let mut junction_data: HashMap<
+                    BTreeMap<String, sea_orm::Value>,
+                    BTreeMap<String, sea_orm::Value>,
+                > = HashMap::new();
                 for input_value in input_values.iter() {
                     let child_input_object = input_value.object()?;
                     let child_uid = entity_input_builder.generate_uid::<R>();
@@ -470,23 +482,31 @@ impl EntityObjectViaRelationBuilder {
                             child_object.insert(to_column.clone(), val.clone());
                         } else {
                             return Err(async_graphql::Error::new(format!(
-                                "Foreign key relating {} with {} shouldn't be Null!",
-                                object_name, parent_name
+                                "Foreign key relating {}.{} with {}.{} shouldn't be Null!",
+                                object_name, to_column, parent_name, from_column
                             )));
                         }
                     } else {
+                        let junction_from = via_relation_definition
+                            .to_col
+                            .to_string()
+                            .to_lower_camel_case();
+                        let junction_to = <T as Related<R>>::to()
+                            .from_col
+                            .to_string()
+                            .to_lower_camel_case();
                         if let (Some(parent_val), Some(child_val)) = (
                             parent_object.get(&from_column),
                             child_object.get(&to_column),
                         ) {
                             let mut map = BTreeMap::new();
-                            map.insert(from_column.clone(), parent_val.clone());
-                            map.insert(to_column.clone(), child_val.clone());
+                            map.insert(junction_from.clone(), parent_val.clone());
+                            map.insert(junction_to.clone(), child_val.clone());
                             junction_data.insert(map.clone(), map);
                         } else {
                             return Err(async_graphql::Error::new(format!(
-                                "Foreign key relating {} with {} shouldn't be Null!",
-                                object_name, parent_name
+                                "Foreign key relating {}.{} with {}.{} shouldn't be Null!",
+                                object_name, to_column, parent_name, from_column
                             )));
                         }
                     }
@@ -496,13 +516,15 @@ impl EntityObjectViaRelationBuilder {
                 data.entry(object_name.clone())
                     .or_default()
                     .extend(entity_data);
+                drop(data);
                 if is_via {
                     let junction_table_name = to_table_name(via_relation_definition.to_tbl);
+                    let mut data = data_pointer.lock().await;
                     data.entry(junction_table_name)
                         .or_default()
                         .extend(junction_data);
+                    drop(data);
                 }
-                drop(data);
                 for (counter, input_value) in input_values.iter().enumerate() {
                     let child_input_object = input_value.object()?;
                     for related_entity in related_entities.clone() {
