@@ -16,10 +16,11 @@ use sea_orm::{
 use crate::ConnectionObjectBuilder;
 use crate::{
     apply_memory_pagination, apply_order, apply_pagination, get_filter_conditions,
-    new_prepare_active_model, BuilderContext, DataMap, EntityInputBuilder, EntityObjectBuilder,
-    FilterInputBuilder, GuardAction, HashableGroupKey, KeyComplex, NewOrderInputBuilder,
-    OffsetInput, OneToManyLoader, OneToOneLoader, OrderInputBuilder, PageInput, PaginationInput,
-    PaginationInputBuilder, ThanosRelationBuilder, TupleMap,
+    new_prepare_active_model, set_columns, BuilderContext, DataMap, EntityInputBuilder,
+    EntityObjectBuilder, FilterInputBuilder, GuardAction, HashableGroupKey, KeyComplex,
+    NewOrderInputBuilder, OffsetInput, OneToManyLoader, OneToOneLoader, OrderInputBuilder,
+    PageInput, PaginationInput, PaginationInputBuilder, ThanosRelationBuilder, TupleMap,
+    TypesMapHelper,
 };
 
 /// This builder produces a GraphQL field for an SeaORM entity related trait
@@ -369,10 +370,17 @@ impl EntityObjectViaRelationBuilder {
         if owner != via_relation_definition.is_owner || is_via {
             if let Some(entity_data) = entity_data.unwrap() {
                 let mut active_models = vec![];
+
+                let set_columns = set_columns::<T>(&entity_object_builder, &entity_data);
+                let types_map_helper = TypesMapHelper {
+                    context: self.context,
+                };
                 for (_, mut entity) in entity_data {
                     active_models.push(new_prepare_active_model::<R, B>(
+                        &types_map_helper,
                         &entity_object_builder,
                         &mut entity,
+                        &set_columns,
                     )?);
                 }
 

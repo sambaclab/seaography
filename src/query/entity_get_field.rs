@@ -89,7 +89,10 @@ impl EntityGetFieldBuilder {
                             match ctx.args.get(&column_name) {
                                 Some(val) => stmt.filter(
                                     column.eq(types_map_helper
-                                        .async_graphql_value_to_sea_orm_value::<T>(&column, &val)
+                                        .async_graphql_value_to_sea_orm_value::<T>(
+                                            &column,
+                                            Some(&val),
+                                        )
                                         .unwrap()),
                                 ),
                                 _ => stmt,

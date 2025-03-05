@@ -260,7 +260,7 @@ impl EntityInputBuilder {
             };
 
             let result = types_map_helper
-                .async_graphql_value_to_sea_orm_value::<T>(&column.into_column(), &value)?;
+                .async_graphql_value_to_sea_orm_value::<T>(&column.into_column(), Some(&value))?;
 
             map.insert(column_name, result);
         }
@@ -302,8 +302,8 @@ impl EntityInputBuilder {
                 None => continue,
             };
 
-            let result =
-                types_map_helper.async_graphql_value_to_sea_orm_value::<T>(&column, &value)?;
+            let result = types_map_helper
+                .async_graphql_value_to_sea_orm_value::<T>(&column, Some(&value))?;
 
             map.insert(column_name, result);
         }

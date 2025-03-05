@@ -11,7 +11,7 @@ use sea_orm::{
 
 use crate::{
     BuilderContext, DataMap, EntityInputBuilder, EntityObjectBuilder, EntityObjectPayloadBuilder,
-    GuardAction, ThanosRelationBuilder,
+    GuardAction, ThanosRelationBuilder, TypesMapHelper,
 };
 
 /// The configuration structure of EntityAddMutationBuilder
@@ -209,10 +209,16 @@ impl EntityAddMutationBuilder {
                     let entity_data = data.remove(&object_name.clone());
                     if let Some(entity_data) = entity_data {
                         let mut active_models = vec![];
+                        let set_columns = set_columns::<T>(&entity_object_builder, &entity_data);
+                        let types_map_helper = TypesMapHelper{
+                            context
+                        };
                         for (_, mut entity) in entity_data {
                             active_models.push(new_prepare_active_model::<T, A>(
+                                &types_map_helper,
                                 &entity_object_builder,
                                 &mut entity,
+                                &set_columns
                             )?);
                         }
 
@@ -366,8 +372,10 @@ where
 }
 
 pub fn new_prepare_active_model<T, A>(
+    types_map_helper: &TypesMapHelper,
     entity_object_builder: &EntityObjectBuilder,
     data: &mut BTreeMap<String, sea_orm::Value>,
+    set_columns: &HashSet<String>,
 ) -> async_graphql::Result<A>
 where
     T: EntityTrait,
@@ -376,7 +384,6 @@ where
     A: ActiveModelTrait<Entity = T> + sea_orm::ActiveModelBehavior + std::marker::Send,
 {
     let mut active_model = A::default();
-
     for column in T::Column::iter() {
         // used to skip auto created primary keys
         let auto_increment = match <T::PrimaryKey as PrimaryKeyToColumn>::from_column(column) {
@@ -387,14 +394,42 @@ where
         if auto_increment {
             continue;
         }
-
-        match data.remove(&entity_object_builder.column_name::<T>(&column)) {
+        let column_name = entity_object_builder.column_name::<T>(&column);
+        match data.remove(&column_name) {
             Some(value) => {
                 active_model.set(column, value);
             }
-            None => continue,
+            None => {
+                if set_columns.contains(&column_name) {
+                    active_model.set(column, types_map_helper
+                            .async_graphql_value_to_sea_orm_value::<T>(&column,None)?
+                    )
+                } else {
+                    continue
+                }
+            },
         }
     }
 
     Ok(active_model)
+}
+
+pub fn set_columns<T>(
+    entity_object_builder: &EntityObjectBuilder,
+    data: &HashMap<BTreeMap<String, sea_orm::Value>,BTreeMap<String, sea_orm::Value>>
+) -> HashSet<String>
+where
+    T:EntityTrait,
+    <T as EntityTrait>::Model: Sync,
+{
+    let mut columns_set = HashSet::new();
+    for (_, entity_data) in data {
+        for col in T::Column::iter() {
+            let column_name = entity_object_builder.column_name::<T>(&col);
+            if let Some(_) = entity_data.get(&column_name) {
+                columns_set.insert(column_name);
+            }
+        }
+    }
+    columns_set
 }

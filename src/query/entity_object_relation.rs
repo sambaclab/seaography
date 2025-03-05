@@ -13,11 +13,11 @@ use std::collections::HashMap;
 #[cfg(not(feature = "offset-pagination"))]
 use crate::ConnectionObjectBuilder;
 use crate::{
-    apply_memory_pagination, get_filter_conditions, new_prepare_active_model, BuilderContext,
-    DataMap, EntityInputBuilder, EntityObjectBuilder, FilterInputBuilder, GuardAction,
-    HashableGroupKey, KeyComplex, NewOrderInputBuilder, OffsetInput, OneToManyLoader,
+    apply_memory_pagination, get_filter_conditions, new_prepare_active_model, set_columns,
+    BuilderContext, DataMap, EntityInputBuilder, EntityObjectBuilder, FilterInputBuilder,
+    GuardAction, HashableGroupKey, KeyComplex, NewOrderInputBuilder, OffsetInput, OneToManyLoader,
     OneToOneLoader, OrderInputBuilder, PageInput, PaginationInput, PaginationInputBuilder,
-    ThanosRelationBuilder, TupleMap,
+    ThanosRelationBuilder, TupleMap, TypesMapHelper,
 };
 
 /// This builder produces a GraphQL field for an SeaORM entity relationship
@@ -271,21 +271,18 @@ impl EntityObjectRelationBuilder {
 
         let entity_input_builder = EntityInputBuilder { context };
 
-        let (object_insert_input_name, object_insert_update_name) = (
-            entity_input_builder.insert_type_name::<R>(),
-            entity_input_builder.update_type_name::<R>(),
+        let (object_add_input_name, object_ref_input_name) = (
+            entity_input_builder.ref_type_name::<R>(),
+            entity_input_builder.ref_type_name::<R>(),
         );
-        match (relation_definition.is_owner, relation_definition.rel_type) {
-            (true, sea_orm::RelationType::HasMany) => (
-                InputValue::new(
-                    name.clone(),
-                    TypeRef::named_nn_list(object_insert_input_name),
-                ),
-                InputValue::new(name, TypeRef::named_nn_list(object_insert_update_name)),
+        match relation_definition.is_owner {
+            true => (
+                InputValue::new(name.clone(), TypeRef::named_nn_list(object_add_input_name)),
+                InputValue::new(name, TypeRef::named_nn_list(object_ref_input_name)),
             ),
             _ => (
-                InputValue::new(name.clone(), TypeRef::named(object_insert_input_name)),
-                InputValue::new(name, TypeRef::named(object_insert_update_name)),
+                InputValue::new(name.clone(), TypeRef::named(object_add_input_name)),
+                InputValue::new(name, TypeRef::named(object_ref_input_name)),
             ),
         }
     }
@@ -333,10 +330,16 @@ impl EntityObjectRelationBuilder {
         if owner != relation_definition.is_owner {
             if let Some(entity_data) = entity_data.unwrap() {
                 let mut active_models = vec![];
+                let set_columns = set_columns::<T>(&entity_object_builder, &entity_data);
+                let types_map_helper = TypesMapHelper {
+                    context: self.context,
+                };
                 for (_, mut entity) in entity_data {
                     active_models.push(new_prepare_active_model::<R, B>(
+                        &types_map_helper,
                         &entity_object_builder,
                         &mut entity,
+                        &set_columns,
                     )?);
                 }
 
@@ -386,11 +389,60 @@ impl EntityObjectRelationBuilder {
         let entity_input_builder = EntityInputBuilder { context };
         let object_name = entity_object_builder.type_name::<R>();
         let parent_name = entity_object_builder.type_name::<T>();
-
-        let to_column = relation_definition.to_col.to_string();
-        let from_column = relation_definition.from_col.to_string();
-        let res = match (relation_definition.is_owner, relation_definition.rel_type) {
-            (true, sea_orm::RelationType::HasMany) => {
+        let to_column = relation_definition.to_col.to_string().to_lower_camel_case();
+        let from_column = relation_definition
+            .from_col
+            .to_string()
+            .to_lower_camel_case();
+        let res = match relation_definition.is_owner {
+            false => {
+                // We can use unwrap here cuz we enter to this function if and only if the
+                // input_object contains the related_entity
+                let (to_column, from_column) = (from_column, to_column);
+                let input_value = input_object.get(name).unwrap();
+                let child_input_object = input_value.object()?;
+                let mut data = data_pointer.lock().await;
+                let child_uid = entity_input_builder.generate_uid::<R>();
+                let child_pks =
+                    entity_input_builder.parse_pks::<R>(&child_input_object, child_uid.clone())?;
+                let child_data = entity_input_builder
+                    .parse_object::<R>(&child_input_object, child_uid.clone())?;
+                let parent_data =
+                    entity_input_builder.parse_object::<T>(input_object, parent_uid.clone())?;
+                let parent_pks = entity_input_builder.parse_pks::<T>(input_object, parent_uid)?;
+                let to_column_value = if let Some(val) = child_data.get(&from_column) {
+                    val.clone()
+                } else {
+                    return Err(async_graphql::Error::new(format!(
+                        "Foreign key relating {} with {} shouldn't be Null!",
+                        object_name, parent_name
+                    )));
+                };
+                data.entry(object_name.clone())
+                    .or_default()
+                    .insert(child_pks.clone(), child_data);
+                drop(data);
+                for related_entity in related_entities {
+                    let related_column = related_entity
+                        .prepare_active_model_tree(
+                            context,
+                            &child_input_object,
+                            data_pointer.clone(),
+                            child_uid.clone(),
+                        )
+                        .await?;
+                    if let Some(related_column) = related_column {
+                        let mut data = data_pointer.lock().await;
+                        data.entry(object_name.clone())
+                            .or_default()
+                            .entry(related_column.0)
+                            .or_default()
+                            .insert(related_column.1 .0, related_column.1 .1);
+                    }
+                }
+                Ok(Some((parent_pks, (to_column, to_column_value))))
+            }
+            true => {
                 // We can use unwrap here cuz we enter to this function if and only if the
                 // input_object contains the related_entity
                 //
@@ -451,52 +503,6 @@ impl EntityObjectRelationBuilder {
                     }
                 }
                 Ok(None)
-            }
-            _ => {
-                // We can use unwrap here cuz we enter to this function if and only if the
-                // input_object contains the related_entity
-                let input_value = input_object.get(name).unwrap();
-                let child_input_object = input_value.object()?;
-                let mut data = data_pointer.lock().await;
-                let child_uid = entity_input_builder.generate_uid::<R>();
-                let child_pks =
-                    entity_input_builder.parse_pks::<R>(&child_input_object, child_uid.clone())?;
-                let child_data = entity_input_builder
-                    .parse_object::<R>(&child_input_object, child_uid.clone())?;
-                let parent_data =
-                    entity_input_builder.parse_object::<T>(input_object, parent_uid.clone())?;
-                let parent_pks = entity_input_builder.parse_pks::<T>(input_object, parent_uid)?;
-                let to_column_value = if let Some(val) = parent_data.get(&from_column) {
-                    val.clone()
-                } else {
-                    return Err(async_graphql::Error::new(format!(
-                        "Foreign key relating {} with {} shouldn't be Null!",
-                        object_name, parent_name
-                    )));
-                };
-                data.entry(object_name.clone())
-                    .or_default()
-                    .insert(child_pks.clone(), child_data);
-                drop(data);
-                for related_entity in related_entities {
-                    let related_column = related_entity
-                        .prepare_active_model_tree(
-                            context,
-                            &child_input_object,
-                            data_pointer.clone(),
-                            child_uid.clone(),
-                        )
-                        .await?;
-                    if let Some(related_column) = related_column {
-                        let mut data = data_pointer.lock().await;
-                        data.entry(object_name.clone())
-                            .or_default()
-                            .entry(related_column.0)
-                            .or_default()
-                            .insert(related_column.1 .0, related_column.1 .1);
-                    }
-                }
-                Ok(Some((parent_pks, (to_column, to_column_value))))
             }
         };
         res
