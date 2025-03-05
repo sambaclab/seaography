@@ -371,7 +371,7 @@ impl EntityObjectViaRelationBuilder {
             if let Some(entity_data) = entity_data.unwrap() {
                 let mut active_models = vec![];
 
-                let set_columns = set_columns::<T>(&entity_object_builder, &entity_data);
+                let set_columns = set_columns::<R>(&entity_object_builder, &entity_data);
                 let types_map_helper = TypesMapHelper {
                     context: self.context,
                 };
@@ -392,7 +392,14 @@ impl EntityObjectViaRelationBuilder {
                                 .map(|pk| pk.into_column())
                                 .collect::<Vec<R::Column>>(),
                         )
-                        .update_columns(R::Column::iter())
+                        .update_columns(R::Column::iter().filter_map(|col| {
+                            let column_name = entity_object_builder.column_name::<R>(&col);
+                            if set_columns.contains(&column_name) {
+                                Some(col)
+                            } else {
+                                None
+                            }
+                        }))
                         .to_owned(),
                     )
                 } else {

@@ -330,7 +330,7 @@ impl EntityObjectRelationBuilder {
         if owner != relation_definition.is_owner {
             if let Some(entity_data) = entity_data.unwrap() {
                 let mut active_models = vec![];
-                let set_columns = set_columns::<T>(&entity_object_builder, &entity_data);
+                let set_columns = set_columns::<R>(&entity_object_builder, &entity_data);
                 let types_map_helper = TypesMapHelper {
                     context: self.context,
                 };
@@ -351,7 +351,14 @@ impl EntityObjectRelationBuilder {
                                 .map(|pk| pk.into_column())
                                 .collect::<Vec<R::Column>>(),
                         )
-                        .update_columns(R::Column::iter())
+                        .update_columns(R::Column::iter().filter_map(|col| {
+                            let column_name = entity_object_builder.column_name::<R>(&col);
+                            if set_columns.contains(&column_name) {
+                                Some(col)
+                            } else {
+                                None
+                            }
+                        }))
                         .to_owned(),
                     )
                 } else {
@@ -407,8 +414,6 @@ impl EntityObjectRelationBuilder {
                     entity_input_builder.parse_pks::<R>(&child_input_object, child_uid.clone())?;
                 let child_data = entity_input_builder
                     .parse_object::<R>(&child_input_object, child_uid.clone())?;
-                let parent_data =
-                    entity_input_builder.parse_object::<T>(input_object, parent_uid.clone())?;
                 let parent_pks = entity_input_builder.parse_pks::<T>(input_object, parent_uid)?;
                 let to_column_value = if let Some(val) = child_data.get(&from_column) {
                     val.clone()

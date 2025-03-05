@@ -210,15 +210,13 @@ impl EntityAddMutationBuilder {
                     if let Some(entity_data) = entity_data {
                         let mut active_models = vec![];
                         let set_columns = set_columns::<T>(&entity_object_builder, &entity_data);
-                        let types_map_helper = TypesMapHelper{
-                            context
-                        };
+                        let types_map_helper = TypesMapHelper { context };
                         for (_, mut entity) in entity_data {
                             active_models.push(new_prepare_active_model::<T, A>(
                                 &types_map_helper,
                                 &entity_object_builder,
                                 &mut entity,
-                                &set_columns
+                                &set_columns,
                             )?);
                         }
 
@@ -230,7 +228,14 @@ impl EntityAddMutationBuilder {
                                         .map(|pk| pk.into_column())
                                         .collect::<Vec<T::Column>>(),
                                 )
-                                .update_columns(T::Column::iter())
+                                .update_columns(T::Column::iter().filter_map(|col| {
+                                    let column_name = entity_object_builder.column_name::<T>(&col);
+                                    if set_columns.contains(&column_name) {
+                                        Some(col)
+                                    } else {
+                                        None
+                                    }
+                                }))
                                 .to_owned(),
                             )
                         } else {
@@ -401,13 +406,15 @@ where
             }
             None => {
                 if set_columns.contains(&column_name) {
-                    active_model.set(column, types_map_helper
-                            .async_graphql_value_to_sea_orm_value::<T>(&column,None)?
+                    active_model.set(
+                        column,
+                        types_map_helper
+                            .async_graphql_value_to_sea_orm_value::<T>(&column, None)?,
                     )
                 } else {
-                    continue
+                    continue;
                 }
-            },
+            }
         }
     }
 
@@ -416,10 +423,10 @@ where
 
 pub fn set_columns<T>(
     entity_object_builder: &EntityObjectBuilder,
-    data: &HashMap<BTreeMap<String, sea_orm::Value>,BTreeMap<String, sea_orm::Value>>
+    data: &HashMap<BTreeMap<String, sea_orm::Value>, BTreeMap<String, sea_orm::Value>>,
 ) -> HashSet<String>
 where
-    T:EntityTrait,
+    T: EntityTrait,
     <T as EntityTrait>::Model: Sync,
 {
     let mut columns_set = HashSet::new();
