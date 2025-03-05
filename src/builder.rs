@@ -403,6 +403,10 @@ pub trait RelationBuilder {
 }
 #[async_trait::async_trait]
 pub trait ThanosRelationBuilder {
+    fn get_relation(
+        &self,
+        context: &'static crate::BuilderContext,
+    ) -> async_graphql::dynamic::Field;
     fn get_relation_input(
         &self,
         context: &'static crate::BuilderContext,
@@ -430,7 +434,7 @@ macro_rules! register_entity {
     ($builder:expr, $module_path:ident,$interfaces:expr) => {
         $builder.register_entity::<$module_path::Entity>(
             <$module_path::RelatedEntity as sea_orm::Iterable>::iter()
-                .map(|rel| seaography::RelationBuilder::get_relation(&rel, $builder.context))
+                .map(|rel| seaography::ThanosRelationBuilder::get_relation(&rel, $builder.context))
                 .collect(),
             $interfaces,
         );

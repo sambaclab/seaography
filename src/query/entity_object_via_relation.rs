@@ -70,7 +70,6 @@ impl EntityObjectViaRelationBuilder {
         #[cfg(not(feature = "offset-pagination"))]
         let resolver_fn = |object: crate::Connection<R>| FieldValue::owned_any(object);
         let guard = self.context.guards.entity_guards.get(&object_name);
-
         let from_col = <T::Column as std::str::FromStr>::from_str(
             via_relation_definition
                 .from_col
