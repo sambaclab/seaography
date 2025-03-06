@@ -15,7 +15,7 @@ use sea_orm::{
 #[cfg(not(feature = "offset-pagination"))]
 use crate::ConnectionObjectBuilder;
 use crate::{
-    apply_memory_pagination, apply_order, apply_pagination, get_filter_conditions,
+    apply_memory_pagination, apply_order, apply_pagination, existing_data, get_filter_conditions,
     new_prepare_active_model, set_columns, BuilderContext, DataMap, EntityInputBuilder,
     EntityObjectBuilder, FilterInputBuilder, GuardAction, HashableGroupKey, KeyComplex,
     NewOrderInputBuilder, OffsetInput, OneToManyLoader, OneToOneLoader, OrderInputBuilder,
@@ -372,6 +372,17 @@ impl EntityObjectViaRelationBuilder {
                 let mut active_models = vec![];
 
                 let set_columns = set_columns::<R>(&entity_object_builder, &entity_data);
+                let entity_data = if entity_data.len() > 1 {
+                    existing_data::<T>(
+                        &entity_object_builder,
+                        entity_data,
+                        transaction,
+                        &set_columns,
+                    )
+                    .await?
+                } else {
+                    entity_data
+                };
                 let types_map_helper = TypesMapHelper {
                     context: self.context,
                 };

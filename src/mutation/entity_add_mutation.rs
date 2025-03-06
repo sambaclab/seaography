@@ -4,9 +4,9 @@ use tokio::sync::Mutex;
 
 use async_graphql::dynamic::{Field, FieldFuture, FieldValue, InputValue, ObjectAccessor, TypeRef};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, Condition, DatabaseConnection, EntityTrait, IntoActiveModel,
-    Iterable, ModelTrait, PrimaryKeyToColumn, PrimaryKeyTrait, QueryFilter, QuerySelect,
-    TransactionTrait,
+    ActiveModelTrait, ColumnTrait, Condition, DatabaseConnection, DatabaseTransaction, EntityTrait,
+    IntoActiveModel, Iterable, ModelTrait, PrimaryKeyToColumn, PrimaryKeyTrait, QueryFilter,
+    QuerySelect, TransactionTrait,
 };
 
 use crate::{
@@ -206,10 +206,22 @@ impl EntityAddMutationBuilder {
                             .await?;
                     }
                     let mut data = data_pointer.lock().await;
+
                     let entity_data = data.remove(&object_name.clone());
                     if let Some(entity_data) = entity_data {
                         let mut active_models = vec![];
                         let set_columns = set_columns::<T>(&entity_object_builder, &entity_data);
+                        let entity_data = if entity_data.len() > 1 {
+                            existing_data::<T>(
+                                &entity_object_builder,
+                                entity_data,
+                                &transaction,
+                                &set_columns,
+                            )
+                            .await?
+                        } else {
+                            entity_data
+                        };
                         let types_map_helper = TypesMapHelper { context };
                         for (_, mut entity) in entity_data {
                             active_models.push(new_prepare_active_model::<T, A>(
@@ -350,7 +362,8 @@ where
 {
     let mut data = entity_input_builder.parse_object::<T>(input_object, uid)?;
 
-    for column in T::Column::iter() {
+    for pk in T::PrimaryKey::iter() {
+        let column = pk.into_column();
         // used to skip auto created primary keys
         let auto_increment = match <T::PrimaryKey as PrimaryKeyToColumn>::from_column(column) {
             Some(_) => T::PrimaryKey::auto_increment(),
@@ -374,6 +387,68 @@ where
     }
 
     Ok(())
+}
+
+pub async fn existing_data<T>(
+    entity_object_builder: &EntityObjectBuilder,
+    data: HashMap<BTreeMap<String, sea_orm::Value>, BTreeMap<String, sea_orm::Value>>,
+    transaction: &DatabaseTransaction,
+    set_columns: &HashSet<String>,
+) -> async_graphql::Result<
+    HashMap<BTreeMap<String, sea_orm::Value>, BTreeMap<String, sea_orm::Value>>,
+>
+where
+    T: EntityTrait,
+    <T as EntityTrait>::Model: Sync,
+{
+    let mut res = data.clone();
+    let mut filter_values: HashMap<String, HashSet<sea_orm::Value>> = HashMap::new();
+    for (pk_value, _) in &data {
+        for (col, val) in pk_value {
+            filter_values
+                .entry(col.to_string())
+                .or_default()
+                .insert(val.clone());
+        }
+    }
+    let mut condition = Condition::all();
+    for pk in T::PrimaryKey::iter() {
+        let column = pk.into_column();
+        let column_name = entity_object_builder.column_name::<T>(&column);
+        if let Some(values) = filter_values.get(&column_name) {
+            condition = condition.add(column.is_in(values.clone()));
+        }
+    }
+
+    let models = T::find().filter(condition).all(transaction).await?;
+
+    for model in models {
+        for (pks, entity_data) in &data {
+            let mut is_this = true;
+            for pk in T::PrimaryKey::iter() {
+                let column = pk.into_column();
+                let column_name = entity_object_builder.column_name::<T>(&column);
+                if Some(model.get(column)) != pks.get(&column_name).cloned() {
+                    is_this = false;
+                    break;
+                }
+            }
+            if is_this {
+                for column in T::Column::iter() {
+                    let column_name = entity_object_builder.column_name::<T>(&column);
+                    if !set_columns.contains(&column_name) {
+                        continue;
+                    }
+                    if entity_data.get(&column_name) == None {
+                        res.entry(pks.clone())
+                            .or_default()
+                            .insert(column_name, model.get(column));
+                    }
+                }
+            }
+        }
+    }
+    Ok(res)
 }
 
 pub fn new_prepare_active_model<T, A>(
