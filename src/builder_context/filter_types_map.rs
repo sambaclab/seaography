@@ -4,8 +4,8 @@ use async_graphql::dynamic::{InputObject, InputValue, ObjectAccessor, TypeRef};
 use sea_orm::{ColumnTrait, ColumnType, Condition, EntityTrait};
 
 use crate::{
-    active_enum_filter_input::prepare_enumeration_condition, ActiveEnumFilterInputBuilder,
-    BuilderContext, EntityObjectBuilder, SeaResult, TypesMapHelper,
+    prepare_enumeration_condition, ActiveEnumFilterInputBuilder, BuilderContext,
+    EntityObjectBuilder, SeaResult, TypesMapHelper,
 };
 
 type FnFilterCondition =
