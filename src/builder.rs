@@ -10,14 +10,14 @@ use sea_orm::{
 };
 
 use crate::{
-    ActiveEnumBuilder, ActiveEnumFilterInputBuilder, BuilderContext, CascadeInputBuilder,
-    ConnectionObjectBuilder, CursorInputBuilder, EdgeObjectBuilder, EntityAddMutationBuilder,
-    EntityCreateBatchMutationBuilder, EntityCreateOneMutationBuilder, EntityDeleteMutationBuilder,
-    EntityGetFieldBuilder, EntityInputBuilder, EntityObjectBuilder, EntityObjectPayloadBuilder,
-    EntityQueryFieldBuilder, EntityUpdateMutationBuilder, FilterInputBuilder, FilterTypesMapHelper,
-    NewOrderInputBuilder, OffsetInputBuilder, OneToManyLoader, OneToOneLoader, OrderByEnumBuilder,
-    OrderEnumBuilder, OrderInputBuilder, PageInfoObjectBuilder, PageInputBuilder,
-    PaginationInfoObjectBuilder, PaginationInputBuilder,
+    entity_object_payload, ActiveEnumBuilder, ActiveEnumFilterInputBuilder, BuilderContext,
+    CascadeInputBuilder, ConnectionObjectBuilder, CursorInputBuilder, EdgeObjectBuilder,
+    EntityAddMutationBuilder, EntityCreateBatchMutationBuilder, EntityCreateOneMutationBuilder,
+    EntityDeleteMutationBuilder, EntityGetFieldBuilder, EntityInputBuilder, EntityObjectBuilder,
+    EntityObjectPayloadBuilder, EntityQueryFieldBuilder, EntityUpdateMutationBuilder,
+    FilterInputBuilder, FilterTypesMapHelper, NewOrderInputBuilder, OffsetInputBuilder,
+    OneToManyLoader, OneToOneLoader, OrderByEnumBuilder, OrderEnumBuilder, OrderInputBuilder,
+    PageInfoObjectBuilder, PageInputBuilder, PaginationInfoObjectBuilder, PaginationInputBuilder,
 };
 
 /// The Builder is used to create the Schema for GraphQL
@@ -141,7 +141,8 @@ impl Builder {
             context: self.context,
         };
         let new_order = new_order_input_builder.to_object::<T>();
-        self.inputs.extend(vec![filter, order, new_order, cascade]);
+        self.inputs.extend(vec![filter, order, new_order]);
+
         let order_enum_builder = OrderEnumBuilder {
             context: self.context,
         };
