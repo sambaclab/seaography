@@ -1,7 +1,7 @@
 use async_graphql::dynamic::{Field, FieldFuture, FieldValue, Object, TypeRef};
-use async_graphql::{Error, Value};
+use async_graphql::Error;
 use heck::{ToLowerCamelCase, ToSnakeCase, ToUpperCamelCase};
-use sea_orm::{ColumnTrait, ColumnType, EntityName, EntityTrait, IdenStatic, Iterable, ModelTrait};
+use sea_orm::{EntityName, EntityTrait};
 
 /// The configuration structure for EntityObjectPayloadBuilder
 pub struct EntityObjectPayloadConfig {
@@ -27,7 +27,7 @@ impl std::default::Default for EntityObjectPayloadConfig {
     }
 }
 
-use crate::{BuilderContext, GuardAction, TypesMapHelper};
+use crate::{BuilderContext, GuardAction};
 
 use super::EntityObjectBuilder;
 
