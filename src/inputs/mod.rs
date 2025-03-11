@@ -26,6 +26,5 @@ pub use active_enum_filter_input::*;
 pub mod new_order_input;
 pub use new_order_input::*;
 
-
 pub mod cascade_input;
 pub use cascade_input::*;

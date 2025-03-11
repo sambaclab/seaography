@@ -9,7 +9,7 @@ use sea_orm::{
 
 use crate::{
     prepare_active_model, BuilderContext, EntityInputBuilder, EntityObjectBuilder,
-    EntityObjectPayloadBuilder, EntityQueryFieldBuilder, GuardAction, ThanosRelationBuilder,
+    EntityObjectPayloadBuilder, GuardAction, ThanosRelationBuilder,
 };
 
 /// The configuration structure of EntityAddMutationBuilder
