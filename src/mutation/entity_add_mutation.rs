@@ -264,7 +264,6 @@ where
     } else {
         None
     };
-    println!("{:?}", y);
     let mut condition = Condition::all();
     for column in T::Column::iter() {
         // used to skip auto created primary keys

@@ -93,9 +93,6 @@ where
                 variant.to_snake_case()
             } else if cfg!(feature = "offset-pagination") {
                 variant
-                    .chars()
-                    .filter(|c| c.is_alphanumeric())
-                    .collect::<String>()
             } else {
                 variant.to_upper_camel_case().to_ascii_uppercase()
             };

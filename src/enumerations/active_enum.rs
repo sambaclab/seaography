@@ -22,10 +22,7 @@ impl std::default::Default for ActiveEnumConfig {
                 if cfg!(feature = "field-snake-case") {
                     variant.to_snake_case()
                 } else if cfg!(feature = "offset-pagination") {
-                    variant
-                        .chars()
-                        .filter(|c| c.is_ascii_alphanumeric())
-                        .collect()
+                    variant.to_owned()
                 } else {
                     variant.to_upper_camel_case().to_ascii_uppercase()
                 }
@@ -66,7 +63,11 @@ impl ActiveEnumBuilder {
             .fold(Enum::new(&enum_name), |enumeration, variant| {
                 let variant: Value = variant.into();
                 let variant: String = variant.to_string();
-                enumeration.item(self.variant_name(&enum_name, &variant))
+                let variant = variant
+                    .strip_prefix('\'')
+                    .and_then(|s| s.strip_suffix('\''))
+                    .unwrap_or(&variant);
+                enumeration.item(self.variant_name(&enum_name, variant))
             })
     }
 }
