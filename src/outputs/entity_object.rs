@@ -22,6 +22,8 @@ impl std::default::Default for EntityObjectConfig {
             column_name: Box::new(|_entity_name: &str, column_name: &str| -> String {
                 if cfg!(feature = "field-snake-case") {
                     column_name.to_snake_case()
+                } else if cfg!(feature = "offset-pagination") {
+                    column_name.to_owned()
                 } else {
                     column_name.to_lower_camel_case()
                 }
