@@ -1,10 +1,4 @@
-use async_graphql::{
-    dynamic::{Field, FieldFuture, FieldValue, InputValue, TypeRef},
-    Error,
-};
-use heck::{ToLowerCamelCase, ToSnakeCase};
-use sea_orm::{DatabaseConnection, EntityTrait, QueryFilter};
-
+use crate::CascadeInputBuilder;
 #[cfg(not(feature = "offset-pagination"))]
 use crate::ConnectionObjectBuilder;
 use crate::{
@@ -12,8 +6,21 @@ use crate::{
     EntityObjectBuilder, FilterInputBuilder, GuardAction, NewOrderInputBuilder, OrderInputBuilder,
     PaginationInputBuilder,
 };
+use async_graphql::{
+    dynamic::{Field, FieldFuture, FieldValue, InputValue, TypeRef},
+    Error,
+};
+use heck::{ToLowerCamelCase, ToSnakeCase};
+use sea_orm::{DatabaseConnection, EntityTrait, QueryFilter};
 
 use super::get_cascade_conditions;
+use super::get_cascade_conditions;
+use super::get_cascade_conditions;
+use super::get_cascade_conditions;
+#[cfg(not(feature = "offset-pagination"))]
+use crate::ConnectionObjectBuilder;
+use crate::{
+
 
 /// The configuration structure for EntityQueryFieldBuilder
 pub struct EntityQueryFieldConfig {
@@ -26,6 +33,7 @@ pub struct EntityQueryFieldConfig {
     /// name for 'pagination' field
     pub pagination: String,
     pub order: String,
+    pub cascade: String,
 }
 
 impl std::default::Default for EntityQueryFieldConfig {
@@ -49,6 +57,7 @@ impl std::default::Default for EntityQueryFieldConfig {
             },
             pagination: "pagination".into(),
             order: "order".into(),
+            cascade: "cascade".into(),
         }
     }
 }
@@ -85,9 +94,6 @@ impl EntityQueryFieldBuilder {
         let filter_input_builder = FilterInputBuilder {
             context: self.context,
         };
-        // let cascade_input_builder = CascadeInputBuilder {
-        //     context: self.context,
-        // };
         let order_input_builder = OrderInputBuilder {
             context: self.context,
         };
@@ -98,6 +104,9 @@ impl EntityQueryFieldBuilder {
             context: self.context,
         };
         let entity_object = EntityObjectBuilder {
+            context: self.context,
+        };
+        let cascade_input_builder = CascadeInputBuilder {
             context: self.context,
         };
 
@@ -150,24 +159,34 @@ impl EntityQueryFieldBuilder {
                         let pagination =
                             PaginationInputBuilder { context }.parse_object(pagination);
                         let pagination = get_first(first, pagination);
-                        let _cascades = ctx.args.get("cascade");
-                        let _cascades = get_cascade_conditions(_cascades);
+
+                        let fields = ctx
+                            .field()
+                            .selection_set()
+                            .map(|field| field.name())
+                            .collect::<Vec<_>>();
+
+                        let cascades = ctx.args.get(&context.entity_query_field.cascade);
+                        let cascades = get_cascade_conditions::<T>(context, cascades, fields);
 
                         //let stmt =
                         // CascadeInputBuilder { context }.parse_object::<T>(context, cascades);
                         let stmt = T::find();
-                        let stmt = stmt.filter(filters);
+                        let stmt = stmt.filter(filters.add(cascades));
                         let stmt = apply_order(stmt, order_by);
 
                         let db = ctx.data::<DatabaseConnection>()?;
 
                         let object = apply_pagination(db, stmt, pagination).await?;
-
                         Ok(Some(resolver_fn(object)))
                     }
                 })
             }
         })
+        .argument(InputValue::new(
+            &self.context.entity_query_field.cascade,
+            TypeRef::named(cascade_input_builder.type_name(&object_name)),
+        ))
         .argument(InputValue::new(
             &self.context.entity_query_field.filters,
             TypeRef::named(filter_input_builder.type_name(&object_name)),
@@ -187,3 +206,6 @@ impl EntityQueryFieldBuilder {
         .argument(InputValue::new("first", TypeRef::named(TypeRef::INT)))
     }
 }
+
+
+

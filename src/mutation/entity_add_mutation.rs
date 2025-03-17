@@ -518,5 +518,3 @@ where
     }
     columns_set
 }
-
-

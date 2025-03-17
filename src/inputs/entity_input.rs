@@ -168,7 +168,6 @@ impl EntityInputBuilder {
                 Some(type_name) => type_name,
                 None => return object,
             };
-
             object.field(InputValue::new(column_name, graphql_type))
         })
     }

@@ -22,6 +22,8 @@ impl std::default::Default for EntityObjectConfig {
             column_name: Box::new(|_entity_name: &str, column_name: &str| -> String {
                 if cfg!(feature = "field-snake-case") {
                     column_name.to_snake_case()
+                } else if cfg!(feature = "offset-pagination") {
+                    column_name.to_owned()
                 } else {
                     column_name.to_lower_camel_case()
                 }
@@ -182,7 +184,6 @@ impl EntityObjectBuilder {
                         }
                     });
                 }
-
                 FieldFuture::new(async move {
                     Ok(sea_query_value_to_graphql_value(
                         object.get(column),
@@ -216,12 +217,7 @@ fn sea_query_value_to_graphql_value(
             if cfg!(feature = "field-snake-case") {
                 Value::from(it.as_str().to_snake_case())
             } else if cfg!(feature = "offset-pagination") {
-                Value::from(
-                    it.chars()
-                        .filter(|c| c.is_alphanumeric())
-                        .collect::<String>()
-                        .as_str(),
-                )
+                Value::from(it.as_str())
             } else {
                 Value::from(it.as_str().to_upper_camel_case().to_ascii_uppercase())
             }
