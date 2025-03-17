@@ -206,6 +206,3 @@ impl EntityQueryFieldBuilder {
         .argument(InputValue::new("first", TypeRef::named(TypeRef::INT)))
     }
 }
-
-
-
