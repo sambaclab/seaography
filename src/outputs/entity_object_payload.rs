@@ -29,13 +29,6 @@ impl std::default::Default for EntityObjectPayloadConfig {
     }
 }
 
-<<<<<<< HEAD
-=======
-use crate::{BuilderContext, GuardAction};
-
-use super::EntityObjectBuilder;
-
->>>>>>> feature/offset-pagination
 /// This builder produces the GraphQL object of a SeaORM entity
 pub struct EntityObjectPayloadBuilder {
     pub context: &'static BuilderContext,
