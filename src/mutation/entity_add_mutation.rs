@@ -231,30 +231,33 @@ impl EntityAddMutationBuilder {
                                 &set_columns,
                             )?);
                         }
-
-                        num_uids += active_models.len();
-                        if upsert {
-                            T::insert_many(active_models).on_conflict(
-                                sea_orm::sea_query::OnConflict::columns(
-                                    T::PrimaryKey::iter()
-                                        .map(|pk| pk.into_column())
-                                        .collect::<Vec<T::Column>>(),
+                        let updated_uids = active_models.len();
+                        num_uids += updated_uids;
+                        if updated_uids > 0 {
+                            if upsert {
+                                T::insert_many(active_models).on_conflict(
+                                    sea_orm::sea_query::OnConflict::columns(
+                                        T::PrimaryKey::iter()
+                                            .map(|pk| pk.into_column())
+                                            .collect::<Vec<T::Column>>(),
+                                    )
+                                    .update_columns(T::Column::iter().filter_map(|col| {
+                                        let column_name =
+                                            entity_object_builder.column_name::<T>(&col);
+                                        if set_columns.contains(&column_name) {
+                                            Some(col)
+                                        } else {
+                                            None
+                                        }
+                                    }))
+                                    .to_owned(),
                                 )
-                                .update_columns(T::Column::iter().filter_map(|col| {
-                                    let column_name = entity_object_builder.column_name::<T>(&col);
-                                    if set_columns.contains(&column_name) {
-                                        Some(col)
-                                    } else {
-                                        None
-                                    }
-                                }))
-                                .to_owned(),
-                            )
-                        } else {
-                            T::insert_many(active_models)
+                            } else {
+                                T::insert_many(active_models)
+                            }
+                            .exec(&transaction)
+                            .await?;
                         }
-                        .exec(&transaction)
-                        .await?;
                     }
                     drop(data);
                     for related_entity in related_entities_iter.clone() {
@@ -515,3 +518,5 @@ where
     }
     columns_set
 }
+
+

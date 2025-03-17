@@ -395,29 +395,32 @@ impl EntityObjectViaRelationBuilder {
                     )?);
                 }
 
-                num_uids += active_models.len();
-                if upsert {
-                    R::insert_many(active_models).on_conflict(
-                        sea_orm::sea_query::OnConflict::columns(
-                            R::PrimaryKey::iter()
-                                .map(|pk| pk.into_column())
-                                .collect::<Vec<R::Column>>(),
+                let updated_uids = active_models.len();
+                num_uids += updated_uids;
+                if updated_uids > 0 {
+                    if upsert {
+                        R::insert_many(active_models).on_conflict(
+                            sea_orm::sea_query::OnConflict::columns(
+                                R::PrimaryKey::iter()
+                                    .map(|pk| pk.into_column())
+                                    .collect::<Vec<R::Column>>(),
+                            )
+                            .update_columns(R::Column::iter().filter_map(|col| {
+                                let column_name = entity_object_builder.column_name::<R>(&col);
+                                if set_columns.contains(&column_name) {
+                                    Some(col)
+                                } else {
+                                    None
+                                }
+                            }))
+                            .to_owned(),
                         )
-                        .update_columns(R::Column::iter().filter_map(|col| {
-                            let column_name = entity_object_builder.column_name::<R>(&col);
-                            if set_columns.contains(&column_name) {
-                                Some(col)
-                            } else {
-                                None
-                            }
-                        }))
-                        .to_owned(),
-                    )
-                } else {
-                    R::insert_many(active_models)
+                    } else {
+                        R::insert_many(active_models)
+                    }
+                    .exec(transaction)
+                    .await?;
                 }
-                .exec(transaction)
-                .await?;
             }
         }
 
