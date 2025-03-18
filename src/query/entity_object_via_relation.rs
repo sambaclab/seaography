@@ -16,11 +16,11 @@ use sea_orm::{
 use crate::ConnectionObjectBuilder;
 use crate::{
     apply_memory_pagination, apply_order, apply_pagination, existing_data, get_filter_conditions,
-    new_prepare_active_model, set_columns, BuilderContext, DataMap, EntityInputBuilder,
-    EntityObjectBuilder, FilterInputBuilder, GuardAction, HashableGroupKey, KeyComplex,
-    NewOrderInputBuilder, OffsetInput, OneToManyLoader, OneToOneLoader, OrderInputBuilder,
-    PageInput, PaginationInput, PaginationInputBuilder, ThanosRelationBuilder, TupleMap,
-    TypesMapHelper,
+    new_prepare_active_model, set_columns, BuilderContext, CascadeInputBuilder, DataMap,
+    EntityInputBuilder, EntityObjectBuilder, FilterInputBuilder, GuardAction, HashableGroupKey,
+    KeyComplex, NewOrderInputBuilder, OffsetInput, OneToManyLoader, OneToOneLoader,
+    OrderInputBuilder, PageInput, PaginationInput, PaginationInputBuilder, ThanosRelationBuilder,
+    TupleMap, TypesMapHelper,
 };
 
 use super::get_cascade_conditions;
@@ -480,20 +480,11 @@ impl EntityObjectViaRelationBuilder {
         };
 
         let to_column = if is_via {
-            <T as Related<R>>::to()
-                .to_col
-                .to_string()
-                .to_lower_camel_case()
+            <T as Related<R>>::to().to_col.to_string()
         } else {
-            via_relation_definition
-                .to_col
-                .to_string()
-                .to_lower_camel_case()
+            via_relation_definition.to_col.to_string()
         };
-        let from_column = via_relation_definition
-            .from_col
-            .to_string()
-            .to_lower_camel_case();
+        let from_column = via_relation_definition.from_col.to_string();
 
         let res = match (
             via_relation_definition.is_owner,
@@ -538,14 +529,8 @@ impl EntityObjectViaRelationBuilder {
                             )));
                         }
                     } else {
-                        let junction_from = via_relation_definition
-                            .to_col
-                            .to_string()
-                            .to_lower_camel_case();
-                        let junction_to = <T as Related<R>>::to()
-                            .from_col
-                            .to_string()
-                            .to_lower_camel_case();
+                        let junction_from = via_relation_definition.to_col.to_string();
+                        let junction_to = <T as Related<R>>::to().from_col.to_string();
                         if let (Some(parent_val), Some(child_val)) = (
                             parent_object.get(&from_column),
                             child_object.get(&to_column),

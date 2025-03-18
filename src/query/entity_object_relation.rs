@@ -410,11 +410,8 @@ impl EntityObjectRelationBuilder {
         let entity_input_builder = EntityInputBuilder { context };
         let object_name = entity_object_builder.type_name::<R>();
         let parent_name = entity_object_builder.type_name::<T>();
-        let to_column = relation_definition.to_col.to_string().to_lower_camel_case();
-        let from_column = relation_definition
-            .from_col
-            .to_string()
-            .to_lower_camel_case();
+        let to_column = relation_definition.to_col.to_string();
+        let from_column = relation_definition.from_col.to_string();
         let res = match relation_definition.is_owner {
             false => {
                 // We can use unwrap here cuz we enter to this function if and only if the
