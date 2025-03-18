@@ -321,9 +321,9 @@ impl EntityObjectViaRelationBuilder {
         let context: &'static BuilderContext = self.context;
 
         let entity_input_builder = EntityInputBuilder { context };
-        let via_relation_definition = match <T as Related<R>>::via() {
-            Some(def) => def,
-            None => <T as Related<R>>::to(),
+        let (via_relation_definition, is_via) = match <T as Related<R>>::via() {
+            Some(def) => (def, true),
+            None => (<T as Related<R>>::to(), false),
         };
 
         let (object_add_input_name, object_ref_input_name) = (
@@ -333,8 +333,9 @@ impl EntityObjectViaRelationBuilder {
         match (
             via_relation_definition.is_owner,
             via_relation_definition.rel_type,
+            is_via,
         ) {
-            (true, sea_orm::RelationType::HasMany) => (
+            (true, sea_orm::RelationType::HasMany, false) | (_, _, true) => (
                 InputValue::new(name.clone(), TypeRef::named_nn_list(object_add_input_name)),
                 InputValue::new(name, TypeRef::named_nn_list(object_ref_input_name)),
             ),
