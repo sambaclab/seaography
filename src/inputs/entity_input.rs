@@ -245,7 +245,9 @@ impl EntityInputBuilder {
         for column in T::PrimaryKey::iter() {
             let column_name = entity_object_builder.column_name::<T>(&column.into_column());
 
-            if column_name == "uid" {
+            let full_name = format!("{}.{}", entity_object_builder.type_name::<T>(), column_name);
+            let skip = self.context.entity_input.add_skips.contains(&full_name);
+            if column_name == "uid" || skip {
                 if let Some(ref uid) = uid {
                     map.insert(
                         column_name,
@@ -288,7 +290,10 @@ impl EntityInputBuilder {
 
         for column in T::Column::iter() {
             let column_name = entity_object_builder.column_name::<T>(&column);
-            if column_name == "uid" {
+
+            let full_name = format!("{}.{}", entity_object_builder.type_name::<T>(), column_name);
+            let skip = self.context.entity_input.add_skips.contains(&full_name);
+            if column_name == "uid" || skip {
                 if let Some(ref uid) = uid {
                     map.insert(
                         column_name,
