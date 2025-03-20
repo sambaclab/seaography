@@ -139,17 +139,15 @@ impl EntityInputBuilder {
 
             let skip = if ty == "insert" {
                 self.context.entity_input.insert_skips.contains(&full_name)
-            } else if ty == "update" {
-                self.context.entity_input.update_skips.contains(&full_name)
-            } else if ty == "add" {
-                self.context.entity_input.add_skips.contains(&full_name)
             } else {
-                self.context.entity_input.ref_skips.contains(&full_name)
+                self.context.entity_input.update_skips.contains(&full_name)
             };
 
             if skip {
                 return object;
             }
+
+            let skip_add = self.context.entity_input.add_skips.contains(&full_name);
 
             let column_def = column.def();
 
@@ -161,7 +159,8 @@ impl EntityInputBuilder {
             let is_insert_not_nullable = (ty == "insert"
                 || (ty == "add" && column_name != "uid")
                 || (ty == "ref" && column_name != "uid"))
-                && !(column_def.is_null() || auto_increment);
+                && !(column_def.is_null() || auto_increment)
+                && !skip_add;
 
             let graphql_type = match types_map_helper.sea_orm_column_type_to_graphql_type(
                 column_def.get_column_type(),
@@ -250,10 +249,12 @@ impl EntityInputBuilder {
             if column_name == "uid" || skip {
                 if let Some(ref uid) = uid {
                     map.insert(
-                        column_name,
+                        column_name.clone(),
                         sea_orm::Value::String(Some(Box::new(uid.to_owned()))),
                     );
-                    continue;
+                    if !skip {
+                        continue;
+                    }
                 }
             }
 
@@ -296,10 +297,12 @@ impl EntityInputBuilder {
             if column_name == "uid" || skip {
                 if let Some(ref uid) = uid {
                     map.insert(
-                        column_name,
+                        column_name.clone(),
                         sea_orm::Value::String(Some(Box::new(uid.to_owned()))),
                     );
-                    continue;
+                    if !skip {
+                        continue;
+                    }
                 }
             }
 
