@@ -23,6 +23,7 @@ async-graphql = { version = "7.0", features = [
     "dynamic-schema",
 ] }
 async-trait = "0.1.81"
+chrono = "0.4"
 sea-orm = { version = "1.0.*", default-features = false, features = [
     "seaography",
 ] }

@@ -1,5 +1,6 @@
 use async_graphql::dynamic::{Field, FieldFuture, Object};
 use async_graphql::{Error, Value};
+use chrono::format::SecondsFormat;
 use heck::{ToLowerCamelCase, ToSnakeCase, ToUpperCamelCase};
 use sea_orm::{ColumnTrait, ColumnType, EntityName, EntityTrait, IdenStatic, Iterable, ModelTrait};
 
@@ -260,19 +261,19 @@ fn sea_query_value_to_graphql_value(
         #[cfg(feature = "with-chrono")]
         #[cfg_attr(docsrs, doc(cfg(feature = "with-chrono")))]
         sea_orm::sea_query::Value::ChronoDateTimeUtc(value) => {
-            value.map(|it| Value::from(it.to_string()))
+            value.map(|it| Value::from(it.to_rfc3339_opts(SecondsFormat::Millis, true)))
         }
 
         #[cfg(feature = "with-chrono")]
         #[cfg_attr(docsrs, doc(cfg(feature = "with-chrono")))]
         sea_orm::sea_query::Value::ChronoDateTimeLocal(value) => {
-            value.map(|it| Value::from(it.to_string()))
+            value.map(|it| Value::from(it.to_rfc3339_opts(SecondsFormat::Millis, true)))
         }
 
         #[cfg(feature = "with-chrono")]
         #[cfg_attr(docsrs, doc(cfg(feature = "with-chrono")))]
         sea_orm::sea_query::Value::ChronoDateTimeWithTimeZone(value) => {
-            value.map(|it| Value::from(it.to_string()))
+            value.map(|it| Value::from(it.to_rfc3339_opts(SecondsFormat::Millis, true)))
         }
 
         #[cfg(feature = "with-time")]

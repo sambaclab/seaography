@@ -194,6 +194,10 @@ impl EntityAddMutationBuilder {
                         );
                         // let result = active_model.clone().insert(&transaction).await?;
                     }
+                    let mut data = data_pointer.lock().await;
+
+                    let entity_data = data.remove(&object_name.clone());
+                    drop(data);
                     for related_entity in related_entities_iter.clone() {
                         num_uids += related_entity
                             .insert_related(
@@ -205,9 +209,6 @@ impl EntityAddMutationBuilder {
                             )
                             .await?;
                     }
-                    let mut data = data_pointer.lock().await;
-
-                    let entity_data = data.remove(&object_name.clone());
                     if let Some(entity_data) = entity_data {
                         let mut active_models = vec![];
                         let set_columns = set_columns::<T>(&entity_object_builder, &entity_data);
@@ -259,7 +260,6 @@ impl EntityAddMutationBuilder {
                             .await?;
                         }
                     }
-                    drop(data);
                     for related_entity in related_entities_iter.clone() {
                         num_uids += related_entity
                             .insert_related(
