@@ -8,7 +8,6 @@ use async_graphql::{
 use sea_orm::{
     ActiveEnum, ActiveModelTrait, DatabaseTransaction, EntityTrait, IntoActiveModel, RelationDef,
 };
-use std::collections::HashSet;
 
 use crate::{
     ActiveEnumBuilder, ActiveEnumFilterInputBuilder, BuilderContext, CascadeInputBuilder,
@@ -19,7 +18,7 @@ use crate::{
     FilterInputBuilder, FilterTypesMapHelper, NewOrderInputBuilder, OffsetInputBuilder,
     OneToManyLoader, OneToOneLoader, OrderByEnumBuilder, OrderEnumBuilder, OrderInputBuilder,
     PageInfoObjectBuilder, PageInputBuilder, PaginationInfoObjectBuilder, PaginationInputBuilder,
-    TupleMap, Visited,
+    TupleMap,
 };
 
 /// The Builder is used to create the Schema for GraphQL
@@ -412,12 +411,7 @@ pub trait ThanosRelationBuilder {
         &self,
         context: &'static crate::BuilderContext,
     ) -> (async_graphql::dynamic::InputValue, InputValue);
-    async fn can_insert(
-        &self,
-        context: &'static crate::BuilderContext,
-        data: DataMap,
-        inserted: Visited,
-    ) -> bool;
+    async fn can_insert(&self, context: &'static crate::BuilderContext, data: DataMap) -> bool;
     async fn prepare_active_model_tree(
         &self,
         context: &'static crate::BuilderContext,
@@ -431,7 +425,6 @@ pub trait ThanosRelationBuilder {
         data: DataMap,
         transaction: &DatabaseTransaction,
         upsert: bool,
-        inserted: Visited,
     ) -> async_graphql::Result<usize>;
 }
 

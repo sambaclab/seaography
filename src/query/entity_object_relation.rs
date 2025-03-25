@@ -17,7 +17,7 @@ use crate::{
     set_columns, BuilderContext, DataMap, EntityInputBuilder, EntityObjectBuilder,
     FilterInputBuilder, GuardAction, HashableGroupKey, KeyComplex, NewOrderInputBuilder,
     OffsetInput, OneToManyLoader, OneToOneLoader, OrderInputBuilder, PageInput, PaginationInput,
-    PaginationInputBuilder, ThanosRelationBuilder, TupleMap, TypesMapHelper, Visited,
+    PaginationInputBuilder, ThanosRelationBuilder, TupleMap, TypesMapHelper,
 };
 
 /// This builder produces a GraphQL field for an SeaORM entity relationship
@@ -293,7 +293,6 @@ impl EntityObjectRelationBuilder {
         upsert: bool,
         transaction: &DatabaseTransaction,
         related_entities: I,
-        inserted: Visited,
     ) -> async_graphql::Result<usize>
     where
         T: EntityTrait,
@@ -317,25 +316,19 @@ impl EntityObjectRelationBuilder {
 
         for related_entity in related_entities.clone() {
             can_i_insert_bool &= related_entity
-                .can_insert(context, data_pointer.clone(), inserted.clone())
+                .can_insert(context, data_pointer.clone())
                 .await;
         }
         while !can_i_insert_bool {
             for related_entity in related_entities.clone() {
                 num_uids += related_entity
-                    .insert_related(
-                        context,
-                        data_pointer.clone(),
-                        transaction,
-                        upsert,
-                        inserted.clone(),
-                    )
+                    .insert_related(context, data_pointer.clone(), transaction, upsert)
                     .await?;
             }
             can_i_insert_bool = true;
             for related_entity in related_entities.clone() {
                 can_i_insert_bool &= related_entity
-                    .can_insert(context, data_pointer.clone(), inserted.clone())
+                    .can_insert(context, data_pointer.clone())
                     .await;
             }
         }
@@ -396,8 +389,6 @@ impl EntityObjectRelationBuilder {
                 .await?;
             }
         }
-        let mut insert_data = inserted.lock().await;
-        insert_data.insert(object_name);
 
         Ok(num_uids)
     }

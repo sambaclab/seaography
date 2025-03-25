@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap};
 use std::fmt::Debug;
 
 use async_graphql::{
@@ -9,7 +9,7 @@ use async_graphql::{
 use heck::{ToLowerCamelCase, ToSnakeCase, ToUpperCamelCase};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, DatabaseConnection, DatabaseTransaction, EntityTrait,
-    Iden, Insert, IntoActiveModel, Iterable, ModelTrait, PrimaryKeyToColumn, QueryFilter, Related,
+    Iden, IntoActiveModel, Iterable, ModelTrait, PrimaryKeyToColumn, QueryFilter, Related,
 };
 
 #[cfg(not(feature = "offset-pagination"))]
@@ -20,7 +20,7 @@ use crate::{
     EntityInputBuilder, EntityObjectBuilder, FilterInputBuilder, GuardAction, HashableGroupKey,
     KeyComplex, NewOrderInputBuilder, OffsetInput, OneToManyLoader, OneToOneLoader,
     OrderInputBuilder, PageInput, PaginationInput, PaginationInputBuilder, ThanosRelationBuilder,
-    TupleMap, TypesMapHelper, Visited,
+    TupleMap, TypesMapHelper,
 };
 
 use super::get_cascade_conditions;
@@ -346,7 +346,7 @@ impl EntityObjectViaRelationBuilder {
         }
     }
 
-    pub async fn can_insert<T, R>(&self, data_pointer: DataMap, inserted: Visited) -> bool
+    pub async fn can_insert<T, R>(&self, data_pointer: DataMap) -> bool
     where
         T: Related<R>,
         T: EntityTrait,
@@ -371,7 +371,6 @@ impl EntityObjectViaRelationBuilder {
         upsert: bool,
         transaction: &DatabaseTransaction,
         related_entities: I,
-        inserted: Visited,
     ) -> async_graphql::Result<usize>
     where
         T: Related<R>,
@@ -391,40 +390,28 @@ impl EntityObjectViaRelationBuilder {
         let context = self.context;
         let entity_object_builder = EntityObjectBuilder { context };
         let object_name = entity_object_builder.type_name::<R>();
-        let mut insert_data = inserted.lock().await;
-        if insert_data.contains(&object_name) {
-            return Ok(0);
-        }
-        insert_data.insert(object_name.clone());
-        drop(insert_data);
         let mut num_uids = 0;
         let mut can_i_insert_bool = true;
         for related_entity in related_entities.clone() {
             can_i_insert_bool &= related_entity
-                .can_insert(context, data_pointer.clone(), inserted.clone())
+                .can_insert(context, data_pointer.clone())
                 .await;
         }
         while !can_i_insert_bool {
             for related_entity in related_entities.clone() {
                 let owner = related_entity
-                    .can_insert(context, data_pointer.clone(), inserted.clone())
+                    .can_insert(context, data_pointer.clone())
                     .await;
                 if !owner {
                     num_uids += related_entity
-                        .insert_related(
-                            context,
-                            data_pointer.clone(),
-                            transaction,
-                            upsert,
-                            inserted.clone(),
-                        )
+                        .insert_related(context, data_pointer.clone(), transaction, upsert)
                         .await?;
                 }
             }
             can_i_insert_bool = true;
             for related_entity in related_entities.clone() {
                 can_i_insert_bool &= related_entity
-                    .can_insert(context, data_pointer.clone(), inserted.clone())
+                    .can_insert(context, data_pointer.clone())
                     .await;
             }
         }
