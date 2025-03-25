@@ -17,7 +17,7 @@ use crate::{
     set_columns, BuilderContext, DataMap, EntityInputBuilder, EntityObjectBuilder,
     FilterInputBuilder, GuardAction, HashableGroupKey, KeyComplex, NewOrderInputBuilder,
     OffsetInput, OneToManyLoader, OneToOneLoader, OrderInputBuilder, PageInput, PaginationInput,
-    PaginationInputBuilder, ThanosRelationBuilder, TupleMap, TypesMapHelper,
+    PaginationInputBuilder, ThanosRelationBuilder, TupleMap, TypesMapHelper, Visited,
 };
 
 /// This builder produces a GraphQL field for an SeaORM entity relationship
@@ -289,12 +289,11 @@ impl EntityObjectRelationBuilder {
 
     pub async fn insert_related<T, A, R, B, I>(
         &self,
-        relation_definition: RelationDef,
         data_pointer: DataMap,
-        owner: bool,
         upsert: bool,
         transaction: &DatabaseTransaction,
         related_entities: I,
+        inserted: Visited,
     ) -> async_graphql::Result<usize>
     where
         T: EntityTrait,
@@ -314,74 +313,91 @@ impl EntityObjectRelationBuilder {
         let entity_object_builder = EntityObjectBuilder { context };
         let object_name = entity_object_builder.type_name::<R>();
         let mut num_uids = 0;
-
-        let entity_data = if owner != relation_definition.is_owner {
-            let mut data = data_pointer.lock().await;
-            Some(data.remove(&object_name))
-        } else {
-            None
-        };
+        let mut can_i_insert_bool = true;
 
         for related_entity in related_entities.clone() {
-            num_uids += related_entity
-                .insert_related(context, data_pointer.clone(), transaction, owner, upsert)
-                .await?;
+            can_i_insert_bool &= related_entity
+                .can_insert(context, data_pointer.clone(), inserted.clone())
+                .await;
         }
-        if owner != relation_definition.is_owner {
-            if let Some(entity_data) = entity_data.unwrap() {
-                let mut active_models = vec![];
-                let set_columns = set_columns::<R>(&entity_object_builder, &entity_data);
-                let entity_data = if entity_data.len() > 1 {
-                    existing_data::<T>(
-                        &entity_object_builder,
-                        entity_data,
+        while !can_i_insert_bool {
+            for related_entity in related_entities.clone() {
+                num_uids += related_entity
+                    .insert_related(
+                        context,
+                        data_pointer.clone(),
                         transaction,
-                        &set_columns,
+                        upsert,
+                        inserted.clone(),
                     )
-                    .await?
-                } else {
-                    entity_data
-                };
-                let types_map_helper = TypesMapHelper {
-                    context: self.context,
-                };
-                for (_, mut entity) in entity_data {
-                    active_models.push(new_prepare_active_model::<R, B>(
-                        &types_map_helper,
-                        &entity_object_builder,
-                        &mut entity,
-                        &set_columns,
-                    )?);
-                }
-
-                let updated_uids = active_models.len();
-                num_uids += updated_uids;
-                if updated_uids > 0 {
-                    if upsert {
-                        R::insert_many(active_models).on_conflict(
-                            sea_orm::sea_query::OnConflict::columns(
-                                R::PrimaryKey::iter()
-                                    .map(|pk| pk.into_column())
-                                    .collect::<Vec<R::Column>>(),
-                            )
-                            .update_columns(R::Column::iter().filter_map(|col| {
-                                let column_name = entity_object_builder.column_name::<R>(&col);
-                                if set_columns.contains(&column_name) {
-                                    Some(col)
-                                } else {
-                                    None
-                                }
-                            }))
-                            .to_owned(),
-                        )
-                    } else {
-                        R::insert_many(active_models)
-                    }
-                    .exec(transaction)
                     .await?;
-                }
+            }
+            can_i_insert_bool = true;
+            for related_entity in related_entities.clone() {
+                can_i_insert_bool &= related_entity
+                    .can_insert(context, data_pointer.clone(), inserted.clone())
+                    .await;
             }
         }
+
+        let mut data = data_pointer.lock().await;
+        let entity_data = data.remove(&object_name);
+        if let Some(entity_data) = entity_data {
+            let mut active_models = vec![];
+
+            let set_columns = set_columns::<R>(&entity_object_builder, &entity_data);
+            let entity_data = if entity_data.len() > 1 {
+                existing_data::<T>(
+                    &entity_object_builder,
+                    entity_data,
+                    transaction,
+                    &set_columns,
+                )
+                .await?
+            } else {
+                entity_data
+            };
+            let types_map_helper = TypesMapHelper {
+                context: self.context,
+            };
+            for (_, mut entity) in entity_data {
+                active_models.push(new_prepare_active_model::<R, B>(
+                    &types_map_helper,
+                    &entity_object_builder,
+                    &mut entity,
+                    &set_columns,
+                )?);
+            }
+
+            let updated_uids = active_models.len();
+            num_uids += updated_uids;
+            if updated_uids > 0 {
+                if upsert {
+                    R::insert_many(active_models).on_conflict(
+                        sea_orm::sea_query::OnConflict::columns(
+                            R::PrimaryKey::iter()
+                                .map(|pk| pk.into_column())
+                                .collect::<Vec<R::Column>>(),
+                        )
+                        .update_columns(R::Column::iter().filter_map(|col| {
+                            let column_name = entity_object_builder.column_name::<R>(&col);
+                            if set_columns.contains(&column_name) {
+                                Some(col)
+                            } else {
+                                None
+                            }
+                        }))
+                        .to_owned(),
+                    )
+                } else {
+                    R::insert_many(active_models)
+                }
+                .exec(transaction)
+                .await?;
+            }
+        }
+        let mut insert_data = inserted.lock().await;
+        insert_data.insert(object_name);
 
         Ok(num_uids)
     }

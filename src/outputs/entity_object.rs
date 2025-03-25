@@ -261,19 +261,19 @@ fn sea_query_value_to_graphql_value(
         #[cfg(feature = "with-chrono")]
         #[cfg_attr(docsrs, doc(cfg(feature = "with-chrono")))]
         sea_orm::sea_query::Value::ChronoDateTimeUtc(value) => {
-            value.map(|it| Value::from(it.to_rfc3339_opts(SecondsFormat::Millis, true)))
+            value.map(|it| Value::from(it.to_rfc3339_opts(SecondsFormat::Nanos, true)))
         }
 
         #[cfg(feature = "with-chrono")]
         #[cfg_attr(docsrs, doc(cfg(feature = "with-chrono")))]
         sea_orm::sea_query::Value::ChronoDateTimeLocal(value) => {
-            value.map(|it| Value::from(it.to_rfc3339_opts(SecondsFormat::Millis, true)))
+            value.map(|it| Value::from(it.to_rfc3339_opts(SecondsFormat::Nanos, true)))
         }
 
         #[cfg(feature = "with-chrono")]
         #[cfg_attr(docsrs, doc(cfg(feature = "with-chrono")))]
         sea_orm::sea_query::Value::ChronoDateTimeWithTimeZone(value) => {
-            value.map(|it| Value::from(it.to_rfc3339_opts(SecondsFormat::Millis, true)))
+            value.map(|it| Value::from(it.to_rfc3339_opts(SecondsFormat::Nanos, true)))
         }
 
         #[cfg(feature = "with-time")]

@@ -11,7 +11,7 @@ use sea_orm::{
 
 use crate::{
     BuilderContext, DataMap, EntityInputBuilder, EntityObjectBuilder, EntityObjectPayloadBuilder,
-    GuardAction, ThanosRelationBuilder, TypesMapHelper,
+    GuardAction, ThanosRelationBuilder, TypesMapHelper, Visited,
 };
 
 /// The configuration structure of EntityAddMutationBuilder
@@ -194,21 +194,35 @@ impl EntityAddMutationBuilder {
                         );
                         // let result = active_model.clone().insert(&transaction).await?;
                     }
-                    let mut data = data_pointer.lock().await;
+                    let inserted: Visited = Arc::new(Mutex::new(HashSet::new()));
+                    let mut can_i_insert_bool = true;
 
-                    let entity_data = data.remove(&object_name.clone());
-                    drop(data);
                     for related_entity in related_entities_iter.clone() {
-                        num_uids += related_entity
-                            .insert_related(
-                                context,
-                                data_pointer.clone(),
-                                &transaction,
-                                true,
-                                upsert,
-                            )
-                            .await?;
+                        can_i_insert_bool &= related_entity
+                            .can_insert(context, data_pointer.clone(), inserted.clone())
+                            .await;
                     }
+                    while !can_i_insert_bool {
+                        for related_entity in related_entities_iter.clone() {
+                            num_uids += related_entity
+                                .insert_related(
+                                    context,
+                                    data_pointer.clone(),
+                                    &transaction,
+                                    upsert,
+                                    inserted.clone(),
+                                )
+                                .await?;
+                        }
+                        can_i_insert_bool = true;
+                        for related_entity in related_entities_iter.clone() {
+                            can_i_insert_bool &= related_entity
+                                .can_insert(context, data_pointer.clone(), inserted.clone())
+                                .await;
+                        }
+                    }
+                    let mut data = data_pointer.lock().await;
+                    let entity_data = data.remove(&object_name.clone());
                     if let Some(entity_data) = entity_data {
                         let mut active_models = vec![];
                         let set_columns = set_columns::<T>(&entity_object_builder, &entity_data);
@@ -260,18 +274,18 @@ impl EntityAddMutationBuilder {
                             .await?;
                         }
                     }
+                    drop(data);
                     for related_entity in related_entities_iter.clone() {
                         num_uids += related_entity
                             .insert_related(
                                 context,
                                 data_pointer.clone(),
                                 &transaction,
-                                false,
                                 upsert,
+                                inserted.clone(),
                             )
                             .await?;
                     }
-
                     let condition =
                         prepare_conditions::<T, A>(&entity_object_builder, &condition_in, db)
                             .await?;

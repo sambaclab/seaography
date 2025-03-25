@@ -237,7 +237,7 @@
 
 pub use heck;
 pub use itertools;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -273,3 +273,4 @@ pub type ComplexNamingFn = Box<dyn Fn(&str, &str) -> String + Sync + Send>;
 pub type Map = HashMap<BTreeMap<String, sea_orm::Value>, BTreeMap<String, sea_orm::Value>>;
 pub type TupleMap = (BTreeMap<String, sea_orm::Value>, (String, sea_orm::Value));
 pub type DataMap = Arc<Mutex<HashMap<String, Map>>>;
+pub type Visited = Arc<Mutex<HashSet<String>>>;
