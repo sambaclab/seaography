@@ -425,6 +425,9 @@ impl EntityObjectRelationBuilder {
                 // input_object contains the related_entity
                 let (to_column, from_column) = (from_column, to_column);
                 let input_value = input_object.get(name).unwrap();
+                if input_value.is_null() {
+                    return Ok(None);
+                }
                 let child_input_object = input_value.object()?;
                 let mut data = data_pointer.lock().await;
                 let child_uid = entity_input_builder.generate_uid::<R>();
@@ -472,6 +475,9 @@ impl EntityObjectRelationBuilder {
 
                 let mut child_uids = vec![];
                 let input_value = input_object.get(name).unwrap();
+                if input_value.is_null() {
+                    return Ok(None);
+                }
                 let input_values = input_value.list()?;
                 let parent_object =
                     entity_input_builder.parse_object::<T>(input_object, parent_uid)?;
@@ -503,6 +509,9 @@ impl EntityObjectRelationBuilder {
                     .extend(entity_data);
                 drop(data);
                 for (counter, input_value) in input_values.iter().enumerate() {
+                    if input_value.is_null() {
+                        continue;
+                    }
                     let child_input_object = input_value.object()?;
                     for related_entity in related_entities.clone() {
                         let related_column = related_entity

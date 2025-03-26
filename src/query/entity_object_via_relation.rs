@@ -523,6 +523,9 @@ impl EntityObjectViaRelationBuilder {
                 //
                 let mut child_uids = vec![];
                 let input_value = input_object.get(name).unwrap();
+                if input_value.is_null() {
+                    return Ok(None);
+                }
                 let input_values = input_value.list()?;
                 let parent_object =
                     entity_input_builder.parse_object::<T>(input_object, parent_uid)?;
@@ -535,6 +538,9 @@ impl EntityObjectViaRelationBuilder {
                     BTreeMap<String, sea_orm::Value>,
                 > = HashMap::new();
                 for input_value in input_values.iter() {
+                    if input_value.is_null() {
+                        continue;
+                    }
                     let child_input_object = input_value.object()?;
                     let child_uid = entity_input_builder.generate_uid::<R>();
                     child_uids.push(child_uid.clone());
@@ -617,6 +623,9 @@ impl EntityObjectViaRelationBuilder {
                 // input_object contains the related_entity
                 let (to_column, from_column) = (from_column, to_column);
                 let input_value = input_object.get(name).unwrap();
+                if input_value.is_null() {
+                    return Ok(None);
+                }
                 let child_input_object = input_value.object()?;
                 let mut data = data_pointer.lock().await;
                 let child_uid = entity_input_builder.generate_uid::<R>();
