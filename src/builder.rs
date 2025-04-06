@@ -80,8 +80,12 @@ impl Builder {
     }
 
     /// used to register a new entity to the Builder context
-    pub fn register_entity<T>(&mut self, relations: Vec<Field>, interfaces: Vec<&str>)
-    where
+    pub fn register_entity<T>(
+        &mut self,
+        relations: Vec<Field>,
+        interfaces: Vec<&str>,
+        extra_fields: Vec<Field>,
+    ) where
         T: EntityTrait,
         <T as EntityTrait>::Model: Sync,
     {
@@ -96,6 +100,11 @@ impl Builder {
             .into_iter()
             .fold(entity_object, |entity_object, interface| {
                 entity_object.implement(interface)
+            });
+        let entity_object = extra_fields
+            .into_iter()
+            .fold(entity_object, |entity_object, field| {
+                entity_object.field(field)
             });
         let entity_object_payload_builder = EntityObjectPayloadBuilder {
             context: self.context,
@@ -426,12 +435,13 @@ pub trait CascadeBuilder {
 
 #[macro_export]
 macro_rules! register_entity {
-    ($builder:expr, $module_path:ident,$interfaces:expr) => {
+    ($builder:expr, $module_path:ident,$interfaces:expr,$params:expr) => {
         $builder.register_entity::<$module_path::Entity>(
             <$module_path::RelatedEntity as sea_orm::Iterable>::iter()
                 .map(|rel| seaography::RelationBuilder::get_relation(&rel, $builder.context))
                 .collect(),
             $interfaces,
+            $params,
         );
         $builder =
             $builder.register_entity_dataloader_one_to_one($module_path::Entity, tokio::spawn);
@@ -453,8 +463,8 @@ macro_rules! register_entity {
 
 #[macro_export]
 macro_rules! register_entities {
-    ($builder:expr, [$(($module_paths:ident,$interfaces:expr)),+ $(,)?]) => {
-        $(seaography::register_entity!($builder, $module_paths,$interfaces);)*
+    ($builder:expr, [$(($module_paths:ident,$interfaces:expr,$params:expr)),+ $(,)?]) => {
+        $(seaography::register_entity!($builder, $module_paths,$interfaces,$params);)*
     };
 }
 
