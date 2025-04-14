@@ -9,14 +9,14 @@ use sea_orm::{
     ModelTrait, PrimaryKeyToColumn, RelationDef,
 };
 
-#[cfg(not(feature = "offset-pagination"))]
-use crate::ConnectionObjectBuilder;
 use crate::{
     apply_memory_pagination, get_filter_conditions, prepare_active_model, BuilderContext,
     EntityInputBuilder, EntityObjectBuilder, FilterInputBuilder, GuardAction, HashableGroupKey,
-    KeyComplex, NewOrderInputBuilder, OffsetInput, OneToManyLoader, OneToOneLoader,
-    OrderInputBuilder, PageInput, PaginationInput, PaginationInputBuilder, ThanosRelationBuilder,
+    KeyComplex, NewOrderInputBuilder, OneToManyLoader, OneToOneLoader, OrderInputBuilder,
+    ThanosRelationBuilder,
 };
+#[cfg(not(feature = "offset-pagination"))]
+use crate::{ConnectionObjectBuilder, PaginationInputBuilder};
 
 /// This builder produces a GraphQL field for an SeaORM entity relationship
 /// that can be added to the entity object
@@ -180,58 +180,25 @@ impl EntityObjectRelationBuilder {
                     };
 
                     let values = loader.load_one(key).await?;
+                    #[cfg(not(feature = "offset-pagination"))]
                     let pagination = ctx.args.get(&context.entity_query_field.pagination);
+                    #[cfg(not(feature = "offset-pagination"))]
                     let pagination = PaginationInputBuilder { context }.parse_object(pagination);
-                    let first = ctx.args.get("first");
-                    let pagination = match first {
-                        Some(first_value) => match first_value.u64() {
-                            Ok(first_num) => {
-                                if let Some(offset) = pagination.offset {
-                                    PaginationInput {
-                                        offset: Some(OffsetInput {
-                                            offset: offset.offset,
-                                            limit: first_num,
-                                        }),
-                                        page: None,
-                                        cursor: None,
-                                    }
-                                } else if let Some(page) = pagination.page {
-                                    PaginationInput {
-                                        offset: None,
-                                        page: Some(PageInput {
-                                            page: page.page,
-                                            limit: first_num,
-                                        }),
-                                        cursor: None,
-                                    }
-                                } else {
-                                    PaginationInput {
-                                        offset: Some(OffsetInput {
-                                            offset: 0,
-                                            limit: first_num,
-                                        }),
-                                        page: None,
-                                        cursor: None,
-                                    }
-                                }
-                            }
-                            _error => pagination,
-                        },
-                        None => pagination,
-                    };
 
+                    #[cfg(feature = "offset-pagination")]
+                    let first = ctx.args.get("first");
+                    #[cfg(feature = "offset-pagination")]
+                    let offset = ctx.args.get("offset");
+
+                    #[cfg(not(feature = "offset-pagination"))]
                     let object = apply_memory_pagination::<R>(values, pagination);
+
+                    #[cfg(feature = "offset-pagination")]
+                    let object = apply_memory_pagination::<R>(values, first, offset)?;
 
                     Ok(Some(resolver_fn(object)))
                 })
-            }),
-        };
-
-        field
-            .argument(InputValue::new(
-                &context.entity_query_field.filters,
-                TypeRef::named(filter_input_builder.type_name(&object_name)),
-            ))
+            })
             .argument(InputValue::new(
                 &context.entity_query_field.order_by,
                 TypeRef::named(order_input_builder.type_name(&object_name)),
@@ -245,6 +212,13 @@ impl EntityObjectRelationBuilder {
                 TypeRef::named(&context.pagination_input.type_name),
             ))
             .argument(InputValue::new("first", TypeRef::named(TypeRef::INT)))
+            .argument(InputValue::new("offset", TypeRef::named(TypeRef::INT))),
+        };
+
+        field.argument(InputValue::new(
+            &context.entity_query_field.filters,
+            TypeRef::named(filter_input_builder.type_name(&object_name)),
+        ))
     }
 
     pub fn get_relation_input<T, R>(

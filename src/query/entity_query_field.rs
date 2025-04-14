@@ -2,8 +2,8 @@ use crate::CascadeInputBuilder;
 #[cfg(not(feature = "offset-pagination"))]
 use crate::ConnectionObjectBuilder;
 use crate::{
-    apply_order, apply_pagination, get_filter_conditions, get_first, BuilderContext,
-    EntityObjectBuilder, FilterInputBuilder, GuardAction, NewOrderInputBuilder, OrderInputBuilder,
+    apply_order, apply_pagination, get_filter_conditions, BuilderContext, EntityObjectBuilder,
+    FilterInputBuilder, GuardAction, NewOrderInputBuilder, OrderInputBuilder,
     PaginationInputBuilder,
 };
 use async_graphql::{
@@ -147,11 +147,17 @@ impl EntityQueryFieldBuilder {
                         let order = ctx.args.get(&context.entity_query_field.order);
                         let order = NewOrderInputBuilder { context }.parse_object::<T>(order);
                         order_by.extend(order);
+                        #[cfg(not(feature = "offset-pagination"))]
                         let pagination = ctx.args.get(&context.entity_query_field.pagination);
-                        let first = ctx.args.get("first");
+                        #[cfg(not(feature = "offset-pagination"))]
                         let pagination =
                             PaginationInputBuilder { context }.parse_object(pagination);
-                        let pagination = get_first(first, pagination);
+
+                        #[cfg(feature = "offset-pagination")]
+                        let first = ctx.args.get("first");
+                        #[cfg(feature = "offset-pagination")]
+                        let offset = ctx.args.get("offset");
+                        // let pagination = get_first(first, offset);
 
                         let fields = ctx
                             .field()
@@ -170,7 +176,12 @@ impl EntityQueryFieldBuilder {
 
                         let db = ctx.data::<DatabaseConnection>()?;
 
+                        #[cfg(not(feature = "offset-pagination"))]
                         let object = apply_pagination(db, stmt, pagination).await?;
+
+                        #[cfg(feature = "offset-pagination")]
+                        let object = apply_pagination(db, stmt, first, offset).await?;
+
                         Ok(Some(resolver_fn(object)))
                     }
                 })
@@ -197,5 +208,6 @@ impl EntityQueryFieldBuilder {
             TypeRef::named(pagination_input_builder.type_name()),
         ))
         .argument(InputValue::new("first", TypeRef::named(TypeRef::INT)))
+        .argument(InputValue::new("offset", TypeRef::named(TypeRef::INT)))
     }
 }

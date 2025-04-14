@@ -3,6 +3,8 @@ use crate::{
     decode_cursor, encode_cursor, map_cursor_values, Connection, Edge, PageInfo, PaginationInfo,
     PaginationInput,
 };
+#[cfg(feature = "offset-pagination")]
+use async_graphql::dynamic::ValueAccessor;
 #[cfg(not(feature = "offset-pagination"))]
 use itertools::Itertools;
 #[allow(unused_imports)]
@@ -266,27 +268,58 @@ where
     }
 }
 
+// #[cfg(feature = "offset-pagination")]
+// pub async fn apply_pagination<T>(
+//     db: &DatabaseConnection,
+//     stmt: Select<T>,
+//     pagination: PaginationInput,
+// ) -> Result<Vec<<T as EntityTrait>::Model>, sea_orm::error::DbErr>
+// where
+//     T: EntityTrait,
+//     <T as EntityTrait>::Model: Sync,
+// {
+//     if let Some(page_object) = pagination.page {
+//         let paginator = stmt.paginate(db, page_object.limit);
+//
+//         Ok(paginator.fetch_page(page_object.page).await?)
+//     } else if let Some(offset_object) = pagination.offset {
+//         let offset = offset_object.offset;
+//         let limit = offset_object.limit;
+//
+//         Ok(stmt.offset(offset).limit(limit).all(db).await?)
+//     } else {
+//         Ok(stmt.all(db).await?)
+//     }
+// }
+
 #[cfg(feature = "offset-pagination")]
 pub async fn apply_pagination<T>(
     db: &DatabaseConnection,
     stmt: Select<T>,
-    pagination: PaginationInput,
-) -> Result<Vec<<T as EntityTrait>::Model>, sea_orm::error::DbErr>
+    first: Option<ValueAccessor<'_>>,
+    offset: Option<ValueAccessor<'_>>,
+) -> async_graphql::Result<Vec<<T as EntityTrait>::Model>>
 where
     T: EntityTrait,
     <T as EntityTrait>::Model: Sync,
 {
-    if let Some(page_object) = pagination.page {
-        let paginator = stmt.paginate(db, page_object.limit);
+    match (first, offset) {
+        (Some(first), Some(offset)) => {
+            let first = first.u64()?;
+            let offset = offset.u64()?;
+            Ok(stmt.offset(offset).limit(first).all(db).await?)
+        }
+        (Some(first), None) => {
+            let first = first.u64()?;
 
-        Ok(paginator.fetch_page(page_object.page).await?)
-    } else if let Some(offset_object) = pagination.offset {
-        let offset = offset_object.offset;
-        let limit = offset_object.limit;
+            Ok(stmt.limit(first).all(db).await?)
+        }
+        (None, Some(offset)) => {
+            let offset = offset.u64()?;
 
-        Ok(stmt.offset(offset).limit(limit).all(db).await?)
-    } else {
-        Ok(stmt.all(db).await?)
+            Ok(stmt.offset(offset).all(db).await?)
+        }
+        (None, None) => Ok(stmt.all(db).await?),
     }
 }
 
@@ -440,28 +473,61 @@ where
     }
 }
 
+// #[cfg(feature = "offset-pagination")]
+// pub fn apply_memory_pagination<T>(
+//     values: Option<Vec<T::Model>>,
+//     pagination: PaginationInput,
+// ) -> Vec<T::Model>
+// where
+//     T: EntityTrait,
+//     T::Model: Sync,
+// {
+//     let data: Vec<<T as EntityTrait>::Model> = values.unwrap_or_default();
+//
+//     if let Some(page_object) = pagination.page {
+//         data.into_iter()
+//             .skip((page_object.page * page_object.limit).try_into().unwrap())
+//             .take(page_object.limit.try_into().unwrap())
+//             .collect()
+//     } else if let Some(offset_object) = pagination.offset {
+//         data.into_iter()
+//             .skip((offset_object.offset).try_into().unwrap())
+//             .take(offset_object.limit.try_into().unwrap())
+//             .collect()
+//     } else {
+//         data
+//     }
+// }
+
 #[cfg(feature = "offset-pagination")]
 pub fn apply_memory_pagination<T>(
     values: Option<Vec<T::Model>>,
-    pagination: PaginationInput,
-) -> Vec<T::Model>
+    first: Option<ValueAccessor>,
+    offset: Option<ValueAccessor>,
+) -> async_graphql::Result<Vec<T::Model>>
 where
     T: EntityTrait,
     T::Model: Sync,
 {
     let data: Vec<<T as EntityTrait>::Model> = values.unwrap_or_default();
-
-    if let Some(page_object) = pagination.page {
-        data.into_iter()
-            .skip((page_object.page * page_object.limit).try_into().unwrap())
-            .take(page_object.limit.try_into().unwrap())
-            .collect()
-    } else if let Some(offset_object) = pagination.offset {
-        data.into_iter()
-            .skip((offset_object.offset).try_into().unwrap())
-            .take(offset_object.limit.try_into().unwrap())
-            .collect()
-    } else {
-        data
+    match (first, offset) {
+        (Some(first), Some(offset)) => {
+            let first = first.u64()?;
+            let offset = offset.u64()?;
+            Ok(data
+                .into_iter()
+                .skip(offset.try_into().unwrap())
+                .take(first.try_into().unwrap())
+                .collect())
+        }
+        (Some(first), None) => {
+            let first = first.u64()?;
+            Ok(data.into_iter().take(first.try_into().unwrap()).collect())
+        }
+        (None, Some(offset)) => {
+            let offset = offset.u64()?;
+            Ok(data.into_iter().skip(offset.try_into().unwrap()).collect())
+        }
+        (None, None) => Ok(data),
     }
 }

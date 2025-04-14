@@ -12,15 +12,15 @@ use sea_orm::{
     RelationDef,
 };
 
-#[cfg(not(feature = "offset-pagination"))]
-use crate::ConnectionObjectBuilder;
 use crate::{
     apply_memory_pagination, apply_order, apply_pagination, get_filter_conditions,
     prepare_active_model, BuilderContext, CascadeInputBuilder, EntityInputBuilder,
     EntityObjectBuilder, FilterInputBuilder, GuardAction, HashableGroupKey, KeyComplex,
-    NewOrderInputBuilder, OffsetInput, OneToManyLoader, OneToOneLoader, OrderInputBuilder,
-    PageInput, PaginationInput, PaginationInputBuilder, ThanosRelationBuilder,
+    NewOrderInputBuilder, OneToManyLoader, OneToOneLoader, OrderInputBuilder,
+    ThanosRelationBuilder,
 };
+#[cfg(not(feature = "offset-pagination"))]
+use crate::{ConnectionObjectBuilder, PaginationInputBuilder};
 
 use super::get_cascade_conditions;
 
@@ -208,45 +208,15 @@ impl EntityObjectViaRelationBuilder {
                     let order = NewOrderInputBuilder { context }.parse_object::<R>(order);
                     order_by.extend(order);
 
+                    #[cfg(not(feature = "offset-pagination"))]
                     let pagination = ctx.args.get(&context.entity_query_field.pagination);
+                    #[cfg(not(feature = "offset-pagination"))]
                     let pagination = PaginationInputBuilder { context }.parse_object(pagination);
+
+                    #[cfg(feature = "offset-pagination")]
                     let first = ctx.args.get("first");
-                    let pagination = match first {
-                        Some(first_value) => match first_value.u64() {
-                            Ok(first_num) => {
-                                if let Some(offset) = pagination.offset {
-                                    PaginationInput {
-                                        offset: Some(OffsetInput {
-                                            offset: offset.offset,
-                                            limit: first_num,
-                                        }),
-                                        page: None,
-                                        cursor: None,
-                                    }
-                                } else if let Some(page) = pagination.page {
-                                    PaginationInput {
-                                        offset: None,
-                                        page: Some(PageInput {
-                                            page: page.page,
-                                            limit: first_num,
-                                        }),
-                                        cursor: None,
-                                    }
-                                } else {
-                                    PaginationInput {
-                                        offset: Some(OffsetInput {
-                                            offset: 0,
-                                            limit: first_num,
-                                        }),
-                                        page: None,
-                                        cursor: None,
-                                    }
-                                }
-                            }
-                            _error => pagination,
-                        },
-                        None => pagination,
-                    };
+                    #[cfg(feature = "offset-pagination")]
+                    let offset = ctx.args.get("offset");
                     let db = ctx.data::<DatabaseConnection>()?;
 
                     let object = if is_via_relation {
@@ -255,7 +225,14 @@ impl EntityObjectViaRelationBuilder {
 
                         let stmt = stmt.filter(condition.add(filters.add(cascades)));
                         let stmt = apply_order(stmt, order_by);
-                        apply_pagination::<R>(db, stmt, pagination).await?
+
+                        #[cfg(not(feature = "offset-pagination"))]
+                        let object = apply_pagination::<R>(db, stmt, pagination).await?;
+
+                        #[cfg(feature = "offset-pagination")]
+                        let object = apply_pagination(db, stmt, first, offset).await?;
+
+                        object
                     } else {
                         let loader = ctx.data_unchecked::<DataLoader<OneToManyLoader<R>>>();
 
@@ -270,23 +247,19 @@ impl EntityObjectViaRelationBuilder {
                         };
 
                         let values = loader.load_one(key).await?;
-                        apply_memory_pagination::<R>(values, pagination)
+
+                        #[cfg(not(feature = "offset-pagination"))]
+                        let object = apply_memory_pagination::<R>(values, pagination);
+
+                        #[cfg(feature = "offset-pagination")]
+                        let object = apply_memory_pagination::<R>(values, first, offset)?;
+
+                        object
                     };
 
                     Ok(Some(resolver_fn(object)))
                 })
-            }),
-        };
-
-        field
-            .argument(InputValue::new(
-                &context.entity_query_field.filters,
-                TypeRef::named(filter_input_builder.type_name(&object_name)),
-            ))
-            .argument(InputValue::new(
-                &context.entity_query_field.cascade,
-                TypeRef::named(cascade_input_builder.type_name(&object_name)),
-            ))
+            })
             .argument(InputValue::new(
                 &context.entity_query_field.order_by,
                 TypeRef::named(order_input_builder.type_name(&object_name)),
@@ -300,6 +273,18 @@ impl EntityObjectViaRelationBuilder {
                 TypeRef::named(&context.pagination_input.type_name),
             ))
             .argument(InputValue::new("first", TypeRef::named(TypeRef::INT)))
+            .argument(InputValue::new("offset", TypeRef::named(TypeRef::INT))),
+        };
+
+        field
+            .argument(InputValue::new(
+                &context.entity_query_field.filters,
+                TypeRef::named(filter_input_builder.type_name(&object_name)),
+            ))
+            .argument(InputValue::new(
+                &context.entity_query_field.cascade,
+                TypeRef::named(cascade_input_builder.type_name(&object_name)),
+            ))
     }
 
     pub fn get_relation_input<T, R>(&self, name: &str) -> (InputValue, InputValue)
