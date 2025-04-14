@@ -442,42 +442,42 @@ impl FilterTypesMapHelper {
                 FilterOperation::Equals => {
                     if let Some(value) = filter.get("eq") {
                         let value = types_map_helper
-                            .async_graphql_value_to_sea_orm_value::<T>(column, &value)?;
+                            .async_graphql_value_to_sea_orm_value::<T>(column, Some(&value))?;
                         condition = condition.add(column.eq(value));
                     }
                 }
                 FilterOperation::NotEquals => {
                     if let Some(value) = filter.get("ne") {
                         let value = types_map_helper
-                            .async_graphql_value_to_sea_orm_value::<T>(column, &value)?;
+                            .async_graphql_value_to_sea_orm_value::<T>(column, Some(&value))?;
                         condition = condition.add(column.ne(value));
                     }
                 }
                 FilterOperation::GreaterThan => {
                     if let Some(value) = filter.get("gt") {
                         let value = types_map_helper
-                            .async_graphql_value_to_sea_orm_value::<T>(column, &value)?;
+                            .async_graphql_value_to_sea_orm_value::<T>(column, Some(&value))?;
                         condition = condition.add(column.gt(value));
                     }
                 }
                 FilterOperation::GreaterThanEquals => {
                     if let Some(value) = filter.get("gte") {
                         let value = types_map_helper
-                            .async_graphql_value_to_sea_orm_value::<T>(column, &value)?;
+                            .async_graphql_value_to_sea_orm_value::<T>(column, Some(&value))?;
                         condition = condition.add(column.gte(value));
                     }
                 }
                 FilterOperation::LessThan => {
                     if let Some(value) = filter.get("lt") {
                         let value = types_map_helper
-                            .async_graphql_value_to_sea_orm_value::<T>(column, &value)?;
+                            .async_graphql_value_to_sea_orm_value::<T>(column, Some(&value))?;
                         condition = condition.add(column.lt(value));
                     }
                 }
                 FilterOperation::LessThanEquals => {
                     if let Some(value) = filter.get("lte") {
                         let value = types_map_helper
-                            .async_graphql_value_to_sea_orm_value::<T>(column, &value)?;
+                            .async_graphql_value_to_sea_orm_value::<T>(column, Some(&value))?;
                         condition = condition.add(column.lte(value));
                     }
                 }
@@ -488,7 +488,7 @@ impl FilterTypesMapHelper {
                             .iter()
                             .map(|v| {
                                 types_map_helper
-                                    .async_graphql_value_to_sea_orm_value::<T>(column, &v)
+                                    .async_graphql_value_to_sea_orm_value::<T>(column, Some(&v))
                             })
                             .collect::<SeaResult<Vec<_>>>()?;
                         condition = condition.add(column.is_in(value));
@@ -501,7 +501,7 @@ impl FilterTypesMapHelper {
                             .iter()
                             .map(|v| {
                                 types_map_helper
-                                    .async_graphql_value_to_sea_orm_value::<T>(column, &v)
+                                    .async_graphql_value_to_sea_orm_value::<T>(column, Some(&v))
                             })
                             .collect::<SeaResult<Vec<_>>>()?;
                         condition = condition.add(column.is_not_in(value));
@@ -520,7 +520,7 @@ impl FilterTypesMapHelper {
                 FilterOperation::Contains => {
                     if let Some(value) = filter.get("contains") {
                         let value = types_map_helper
-                            .async_graphql_value_to_sea_orm_value::<T>(column, &value)?;
+                            .async_graphql_value_to_sea_orm_value::<T>(column, Some(&value))?;
                         let s = match value {
                             sea_orm::sea_query::Value::String(Some(s)) => s.to_string(),
                             _ => value.to_string(),
@@ -531,7 +531,7 @@ impl FilterTypesMapHelper {
                 FilterOperation::StartsWith => {
                     if let Some(value) = filter.get("starts_with") {
                         let value = types_map_helper
-                            .async_graphql_value_to_sea_orm_value::<T>(column, &value)?;
+                            .async_graphql_value_to_sea_orm_value::<T>(column, Some(&value))?;
                         let s = match value {
                             sea_orm::sea_query::Value::String(Some(s)) => s.to_string(),
                             _ => value.to_string(),
@@ -542,7 +542,7 @@ impl FilterTypesMapHelper {
                 FilterOperation::EndsWith => {
                     if let Some(value) = filter.get("ends_with") {
                         let value = types_map_helper
-                            .async_graphql_value_to_sea_orm_value::<T>(column, &value)?;
+                            .async_graphql_value_to_sea_orm_value::<T>(column, Some(&value))?;
                         let s = match value {
                             sea_orm::sea_query::Value::String(Some(s)) => s.to_string(),
                             _ => value.to_string(),
@@ -553,7 +553,7 @@ impl FilterTypesMapHelper {
                 FilterOperation::Like => {
                     if let Some(value) = filter.get("like") {
                         let value = types_map_helper
-                            .async_graphql_value_to_sea_orm_value::<T>(column, &value)?;
+                            .async_graphql_value_to_sea_orm_value::<T>(column, Some(&value))?;
                         let s = match value {
                             sea_orm::sea_query::Value::String(Some(s)) => s.to_string(),
                             _ => value.to_string(),
@@ -564,7 +564,7 @@ impl FilterTypesMapHelper {
                 FilterOperation::NotLike => {
                     if let Some(value) = filter.get("not_like") {
                         let value = types_map_helper
-                            .async_graphql_value_to_sea_orm_value::<T>(column, &value)?;
+                            .async_graphql_value_to_sea_orm_value::<T>(column, Some(&value))?;
                         condition = condition.add(column.not_like(value.to_string()));
                     }
                 }
@@ -575,7 +575,7 @@ impl FilterTypesMapHelper {
                             .iter()
                             .map(|v| {
                                 types_map_helper
-                                    .async_graphql_value_to_sea_orm_value::<T>(column, &v)
+                                    .async_graphql_value_to_sea_orm_value::<T>(column, Some(&v))
                             })
                             .collect::<SeaResult<Vec<_>>>()?;
 
@@ -592,7 +592,7 @@ impl FilterTypesMapHelper {
                             .iter()
                             .map(|v| {
                                 types_map_helper
-                                    .async_graphql_value_to_sea_orm_value::<T>(column, &v)
+                                    .async_graphql_value_to_sea_orm_value::<T>(column, Some(&v))
                             })
                             .collect::<SeaResult<Vec<_>>>()?;
 

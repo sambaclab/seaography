@@ -1,3 +1,5 @@
+use super::EntityObjectBuilder;
+use crate::{BuilderContext, GuardAction};
 use async_graphql::dynamic::{Field, FieldFuture, FieldValue, Object, TypeRef};
 use async_graphql::Error;
 use heck::{ToLowerCamelCase, ToSnakeCase, ToUpperCamelCase};
@@ -26,10 +28,6 @@ impl std::default::Default for EntityObjectPayloadConfig {
         }
     }
 }
-
-use crate::{BuilderContext, GuardAction};
-
-use super::EntityObjectBuilder;
 
 /// This builder produces the GraphQL object of a SeaORM entity
 pub struct EntityObjectPayloadBuilder {

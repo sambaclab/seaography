@@ -203,7 +203,7 @@ impl TypesMapHelper {
     pub fn async_graphql_value_to_sea_orm_value<T>(
         &self,
         column: &T::Column,
-        value: &ValueAccessor,
+        value: Option<&ValueAccessor>,
     ) -> SeaResult<sea_orm::Value>
     where
         T: EntityTrait,
@@ -215,21 +215,30 @@ impl TypesMapHelper {
         let entity_name = entity_object_builder.type_name::<T>();
         let column_name = entity_object_builder.column_name::<T>(column);
 
-        if let Some(parser) = self
-            .context
-            .types
-            .input_conversions
-            .get(&format!("{entity_name}.{column_name}"))
-        {
+        if let (Some(parser), Some(value)) = (
+            self.context
+                .types
+                .input_conversions
+                .get(&format!("{entity_name}.{column_name}")),
+            value,
+        ) {
             return parser.as_ref()(value);
         }
 
-        converted_value_to_sea_orm_value(
-            &self.get_column_type::<T>(column),
-            value,
-            &entity_name,
-            &column_name,
-        )
+        if let Some(value) = value {
+            converted_value_to_sea_orm_value(
+                &self.get_column_type::<T>(column),
+                value,
+                &entity_name,
+                &column_name,
+            )
+        } else {
+            converted_null_to_sea_orm_value(
+                &self.get_column_type::<T>(column),
+                &entity_name,
+                &column_name,
+            )
+        }
     }
 
     /// used to map from a SeaORM column type to an async_graphql type
@@ -476,6 +485,76 @@ pub fn converted_type_to_sea_orm_array_type(
     }
 }
 
+#[allow(unused_variables)] // some conversions behind feature flags need extra params here.
+pub fn converted_null_to_sea_orm_value(
+    column_type: &ConvertedType,
+    entity_name: &str,
+    column_name: &str,
+) -> SeaResult<sea_orm::Value> {
+    Ok(match column_type {
+        ConvertedType::Bool => sea_orm::Value::Bool(None),
+        ConvertedType::TinyInteger => sea_orm::Value::TinyInt(None),
+        ConvertedType::SmallInteger => sea_orm::Value::SmallInt(None),
+        ConvertedType::Integer => sea_orm::Value::Int(None),
+        ConvertedType::BigInteger => sea_orm::Value::BigInt(None),
+        ConvertedType::TinyUnsigned => sea_orm::Value::TinyUnsigned(None),
+        ConvertedType::SmallUnsigned => sea_orm::Value::SmallUnsigned(None),
+        ConvertedType::Unsigned => sea_orm::Value::Unsigned(None),
+        ConvertedType::BigUnsigned => sea_orm::Value::BigUnsigned(None),
+        ConvertedType::Float => sea_orm::Value::Float(None),
+        ConvertedType::Double => sea_orm::Value::Double(None),
+        ConvertedType::String | ConvertedType::Enum(_) | ConvertedType::Custom(_) => {
+            sea_orm::Value::String(None)
+        }
+        ConvertedType::Char => sea_orm::Value::Char(None),
+        ConvertedType::Bytes => sea_orm::Value::Bytes(None),
+        #[cfg(feature = "with-json")]
+        ConvertedType::Json => sea_orm::Value::Json(None),
+        #[cfg(feature = "with-chrono")]
+        ConvertedType::ChronoDate => sea_orm::Value::ChronoDate(None),
+        #[cfg(feature = "with-chrono")]
+        ConvertedType::ChronoTime => sea_orm::Value::ChronoTime(None),
+        #[cfg(feature = "with-chrono")]
+        ConvertedType::ChronoDateTime => sea_orm::Value::ChronoDateTime(None),
+        #[cfg(feature = "with-chrono")]
+        ConvertedType::ChronoDateTimeUtc => sea_orm::Value::ChronoDateTimeUtc(None),
+        #[cfg(feature = "with-chrono")]
+        ConvertedType::ChronoDateTimeLocal => sea_orm::Value::ChronoDateTimeLocal(None),
+        #[cfg(feature = "with-chrono")]
+        ConvertedType::ChronoDateTimeWithTimeZone => {
+            sea_orm::Value::ChronoDateTimeWithTimeZone(None)
+        }
+        #[cfg(feature = "with-time")]
+        ConvertedType::TimeDate => sea_orm::Value::TimeDate(None),
+        #[cfg(feature = "with-time")]
+        ConvertedType::TimeTime => sea_orm::Value::TimeTime(None),
+        #[cfg(feature = "with-time")]
+        ConvertedType::TimeDateTime => sea_orm::Value::TimeDateTime(None),
+        #[cfg(feature = "with-time")]
+        ConvertedType::TimeDateTimeWithTimeZone => sea_orm::Value::TimeDateTimeWithTimeZone(None),
+        #[cfg(feature = "with-uuid")]
+        ConvertedType::Uuid => sea_orm::Value::Uuid(None),
+        #[cfg(feature = "with-decimal")]
+        ConvertedType::Decimal => sea_orm::Value::Decimal(None),
+        #[cfg(feature = "with-bigdecimal")]
+        ConvertedType::BigDecimal => sea_orm::Value::BigDecimal(None),
+        #[cfg(feature = "with-postgres-array")]
+        ConvertedType::Array(ty) => {
+            sea_orm::Value::Array(converted_type_to_sea_orm_array_type(&ty)?, None)
+        } // FIXME: support ip type
+          // #[cfg(feature = "with-ipnetwork")]
+          // ConvertedType::IpNetwork => {
+          //     let value = value.string()?;
+          //     sea_orm::Value::String(Some(Box::new(value.to_string())))
+          // }
+          // FIXME: support mac type
+          // #[cfg(feature = "with-mac_address")]
+          // ConvertedType::MacAddress => {
+          //     let value = value.string()?;
+          //     sea_orm::Value::String(Some(Box::new(value.to_string())))
+          // }
+    })
+}
 #[allow(unused_variables)] // some conversions behind feature flags need extra params here.
 pub fn converted_value_to_sea_orm_value(
     column_type: &ConvertedType,
